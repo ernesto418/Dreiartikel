@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { generateItems, shuffle, hasRule, type PracticeItem } from '../data';
+import { generateItems, shuffle, type PracticeItem } from '../data';
+import { hasRule, getTipp } from '../rules';
 import { playWord } from '../utils/speech';
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
@@ -23,7 +24,7 @@ export function useGameState(filter: FilterType) {
     const answerTimerRef = useRef<number | null>(null);
     const wordPresentedAtRef = useRef<number>(0);       // when word was shown
     const feedbackShownAtRef = useRef<number>(0);        // when answer was submitted
-    const handleAnswerRef = useRef<((selectedArticle: string, tippEngine: (word: string, article: 'der'|'die'|'das') => string) => void) | null>(null);
+    const handleAnswerRef = useRef<((selectedArticle: string, timedOut?: boolean) => void) | null>(null);
 
     const clearAnswerTimer = useCallback(() => {
         if (answerTimerRef.current) {
@@ -38,9 +39,9 @@ export function useGameState(filter: FilterType) {
         let items = generateItems();
 
         if (filter === 'by-rule') {
-            items = items.filter(i => hasRule(i.word, i.answer));
+            items = items.filter(i => hasRule(i.word, i.gender));
         } else if (filter === 'without-rule') {
-            items = items.filter(i => !hasRule(i.word, i.answer));
+            items = items.filter(i => !hasRule(i.word, i.gender));
         } else if (filter !== 'all') {
             items = items.filter(i => i.category === filter);
         }
@@ -64,7 +65,7 @@ export function useGameState(filter: FilterType) {
         }
     }, [currentWord, isAwaitingNext]);
 
-    const handleAnswer = useCallback((selectedArticle: string, tippEngine: (word: string, article: 'der'|'die'|'das') => string) => {
+    const handleAnswer = useCallback((selectedArticle: string, timedOut = false) => {
         if (!currentWord || isAwaitingNext) return;
 
         clearAnswerTimer();
@@ -91,7 +92,9 @@ export function useGameState(filter: FilterType) {
             });
         }
 
-        const tipp = tippEngine(currentWord.word, currentWord.answer as 'der'|'die'|'das');
+        const tipp = timedOut
+            ? `Time's up! The correct article is "${currentWord.answer}".`
+            : getTipp(currentWord.word, currentWord.gender);
         setTippText(tipp);
         setIsAwaitingNext(true);
 
@@ -158,9 +161,7 @@ export function useGameState(filter: FilterType) {
 
                 if (handleAnswerRef.current && currentWord) {
                     const wrongOption = currentWord.options.find(o => o !== currentWord.answer) || currentWord.options[0];
-                    handleAnswerRef.current(wrongOption, (_w, article) => {
-                        return `Time's up! The correct article is "${article}".`;
-                    });
+                    handleAnswerRef.current(wrongOption, true);
                 }
             }, TIME_PER_WORD);
         }

@@ -1,9 +1,15 @@
+import { type Article, type Gender, articleForGender, genderForArticle } from './rules';
+
 export interface PracticeItem {
     id: string;
     word: string;
-    answer: string;
+    /** Canonical grammatical gender — the source of truth for this noun. */
+    gender: Gender;
+    /** Nominativ-singular article, derived from gender. The article shown today;
+     *  case modes will derive other forms from `gender` instead. */
+    answer: Article;
     hint: string;
-    options: string[];
+    options: Article[];
     category: string;
 }
 
@@ -363,42 +369,26 @@ const rawData: [string, string][] = [
     ["der#Artikel#article", "Countries"],
 ];
 
-/** Check whether a word follows a strong suffix/prefix gender rule */
-export function hasRule(word: string, article: string): boolean {
-    const lw = word.toLowerCase();
+const VALID_ARTICLES: readonly Article[] = ['der', 'die', 'das'];
 
-    const feminineSuffixes = ['ung', 'heit', 'keit', 'schaft', 'tion', 'tät', 'ik', 'ei', 'ie', 'ur', 'enz'];
-    for (const s of feminineSuffixes) {
-        if (lw.endsWith(s) && article === 'die') return true;
-    }
-
-    const neuterSuffixes = ['chen', 'lein', 'ment', 'um', 'ma'];
-    for (const s of neuterSuffixes) {
-        if (lw.endsWith(s) && article === 'das') return true;
-    }
-
-    const masculineSuffixes = ['ling', 'ismus', 'or', 'ig', 'ich', 'ant', 'ast', 'us'];
-    for (const s of masculineSuffixes) {
-        if (lw.endsWith(s) && article === 'der') return true;
-    }
-
-    if (lw.startsWith('ge') && article === 'das') return true;
-    if (lw.endsWith('e') && article === 'die') return true;
-    if (lw.endsWith('en') && article === 'der') return true;
-    if (lw.endsWith('er') && article === 'der') return true;
-
-    return false;
+function isArticle(value: string): value is Article {
+    return (VALID_ARTICLES as readonly string[]).includes(value);
 }
 
 export function generateItems(): PracticeItem[] {
     return rawData.map(([itemStr, category], index) => {
-        const [answer, word, hint] = itemStr.split('#').map(s => s.trim());
+        const [article, word, hint] = itemStr.split('#').map(s => s.trim());
+        if (!isArticle(article)) {
+            throw new Error(`Invalid article "${article}" for word "${word}" (entry ${index})`);
+        }
+        const gender = genderForArticle(article);
         return {
             id: String(index),
             word,
-            answer,
+            gender,
+            answer: articleForGender(gender),
             hint,
-            options: ["der", "die", "das"],
+            options: [...VALID_ARTICLES],
             category,
         };
     });

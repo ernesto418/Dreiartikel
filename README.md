@@ -1,73 +1,52 @@
-# React + TypeScript + Vite
+# Dreiartikel
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A fast, mobile-friendly web app for drilling German articles — **der, die, das**.
+Swipe (or use arrow keys) to pick the article, race a chess-clock time bank, and
+build streaks that trigger confetti. Words you miss come back until you get them
+right. Installable as a PWA.
 
-Currently, two official plugins are available:
+## How to play
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- A German word appears — pick its article (der / die / das).
+- You have **3 seconds** per word; answer fast to bank extra time.
+- Wrong answers are re-queued and reappear later.
+- **Mobile:** swipe ← der, ↓ die, → das.
+- **Desktop:** ← / ↓ / → arrows, **Space** for next word.
 
-## React Compiler
+Filters let you practice **by rule** (words with a strong suffix/prefix pattern),
+**without rule** (pure memorization), or by topic (Food, Family, Body, …).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Project structure
 
-## Expanding the ESLint configuration
+| Path | Responsibility |
+|------|----------------|
+| `src/data.ts` | The word dataset and `PracticeItem` shape. Each noun's canonical fact is its **gender** (`m`/`f`/`n`); the article is derived from it. |
+| `src/rules.ts` | **Single source of truth** for German gender rules — drives both the "By Rule" filter (`hasRule`) and the Tipp explanations (`getTipp`). Also holds `articleForGender`, the seam where grammatical cases will plug in. |
+| `src/hooks/useGameState.ts` | Game loop: queue, scoring, streaks, the time-bank "chess clock", and spaced re-queueing of wrong answers. |
+| `src/utils/speech.ts` | Web Speech API wrapper that reads each word aloud in German. |
+| `src/utils/confetti.ts` | Escalating confetti and streak-color logic. |
+| `src/App.tsx` | UI: start screen, game screen, swipe/keyboard handling. |
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Scripts
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev      # start the dev server
+npm run build    # type-check + production build
+npm run check    # type-check + lint
+npm test         # run the test suite (vitest)
+npm run preview  # preview the production build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Tests
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `src/rules.test.ts` — gender-rule logic and Tipp explanations.
+- `src/data.test.ts` — dataset integrity: valid genders, capitalised nouns,
+  no duplicates. This is the safety net for the hand-entered word list.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Roadmap
+
+The data model stores **gender** rather than a fixed article, so the current
+der/die/das game is really the *Nominativ singular* mode of a more general
+engine. The planned next step is practicing the other grammatical **cases**
+(Nominativ / Akkusativ / Dativ), deriving each case's article from
+gender × case × number via `articleForGender`'s successor.

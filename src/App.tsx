@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useGameState, type FilterType } from './hooks/useGameState';
-import { getTipp } from './utils/tipp';
 import { getCategories } from './data';
 import { getHypeLevel, fireConfetti, getStreakColor } from './utils/confetti';
 
@@ -70,7 +69,7 @@ function App() {
     if (!currentWord || isAwaitingNext) return;
     setSelectedOption(option);
     if (direction) setSwipeDir(direction);
-    handleAnswer(option, getTipp);
+    handleAnswer(option);
 
     if (option === currentWord.answer) {
       setShowTipp(false);
