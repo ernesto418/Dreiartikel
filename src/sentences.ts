@@ -46,6 +46,26 @@ export interface CaseRound {
     options: string[];     // distinct article choices for this case (shuffled)
     /** Explanation shown after answering. */
     tipp: string;
+    /** Hints the learner can reveal *before* answering — never the solution. */
+    hints: Hint[];
+}
+
+/** A piece of help shown without revealing the answer. `kind` lets the UI and
+ *  future hint types branch; today only 'rule' exists. */
+export interface Hint {
+    kind: 'rule';
+    text: string;
+}
+
+/** Hints for a case round: the rule trigger that names the case (not the
+ *  article). e.g. "The preposition 'zu' takes the Dativ." For Nominativ, where
+ *  case is a no-op, nudge toward the noun's gender instead. */
+function buildHints(template: SentenceTemplate): Hint[] {
+    if (template.case === 'nom') {
+        return [{ kind: 'rule', text: 'The subject is in the Nominativ — think about the noun’s gender.' }];
+    }
+    const triggerCap = template.trigger.charAt(0).toUpperCase() + template.trigger.slice(1);
+    return [{ kind: 'rule', text: `${triggerCap} takes the ${CASE_LABELS[template.case]}.` }];
 }
 
 /** Educational explanation for a round. Nominativ leans on the gender rule
@@ -71,7 +91,8 @@ export function buildRound(item: PracticeItem, template: SentenceTemplate): Case
     const promptText = template.frame.replace('___', `___ ${item.word}`);
     const spokenText = template.frame.replace('___', `${answer} ${item.word}`);
     const tipp = buildTipp(item, template, answer);
-    return { item, template, promptText, spokenText, answer, options, tipp };
+    const hints = buildHints(template);
+    return { item, template, promptText, spokenText, answer, options, tipp, hints };
 }
 
 /** Is this noun usable in sentence mode at all? (Phase 1: singular only.) */

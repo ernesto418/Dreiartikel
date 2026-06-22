@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { articleForGender, genderForArticle, hasRule, getTipp } from './rules';
+import { articleForGender, genderForArticle, hasRule, getTipp, getHint } from './rules';
 
 describe('article ↔ gender mapping', () => {
     it('maps gender to its Nominativ-singular article', () => {
@@ -46,5 +46,19 @@ describe('getTipp', () => {
     it('does not claim a rule when the gender is the exception to it', () => {
         // -e is usually feminine; "der Name" is masculine, so no -e rule should fire.
         expect(getTipp('Name', 'm')).toMatch(/best memorized/);
+    });
+});
+
+describe('getHint', () => {
+    it('points at the pattern location without naming the gender or article', () => {
+        const hint = getHint('Zeitung', 'f'); // -ung → feminine
+        expect(hint).toMatch(/-ung/);
+        // Must not spoil: no article and no gender word.
+        expect(hint).not.toMatch(/\b(der|die|das|feminine|masculine|neuter)\b/);
+    });
+
+    it('says it is a memorize word when no pattern applies', () => {
+        expect(getHint('Mann', 'm')).toMatch(/memorize/);
+        expect(getHint('Mann', 'm')).not.toMatch(/\b(der|die|das)\b/);
     });
 });

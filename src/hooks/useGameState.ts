@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateItems, shuffle, type PracticeItem } from '../data';
-import { hasRule, getTipp } from '../rules';
-import { generateRounds } from '../sentences';
+import { hasRule, getTipp, getHint } from '../rules';
+import { generateRounds, type Hint } from '../sentences';
 import { playWord, stopSpeech } from '../utils/speech';
+
+const MAX_HINTS = 3;        // hints allowed per session
+const HINT_FREEZE_MS = 3000; // how long the timer freezes while a hint shows
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
 export type GameMode = 'article' | 'case-single';
@@ -26,6 +29,8 @@ export interface Round {
     speakOnAnswer: string;
     /** Replay button audio: what the round is "about". */
     speakReplay: string;
+    /** Help the learner can reveal before answering — never the solution. */
+    hints: Hint[];
 }
 
 const INITIAL_TIME_BANK = 3000; // 3 seconds starting budget
@@ -53,6 +58,7 @@ function buildQueue(filter: FilterType, mode: GameMode): Round[] {
             speakOnShow: '',                 // no up-front audio — would leak the article
             speakOnAnswer: r.spokenText,     // full correct sentence, after answering
             speakReplay: r.item.word,        // re-hear just the noun (no article)
+            hints: r.hints,
         }));
     }
 
@@ -68,6 +74,7 @@ function buildQueue(filter: FilterType, mode: GameMode): Round[] {
         speakOnShow: item.word,
         speakOnAnswer: '',
         speakReplay: item.word,
+        hints: [{ kind: 'rule', text: getHint(item.word, item.gender) }],
     }));
 }
 
@@ -87,10 +94,18 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
     const [selectedOption, setSelectedOption] = useState<string | null>(null);
     const [showTipp, setShowTipp] = useState(false);
 
+    // Hint system
+    const [hintsRemaining, setHintsRemaining] = useState(MAX_HINTS);
+    const [revealedHint, setRevealedHint] = useState<Hint | null>(null);
+    const [isFrozen, setIsFrozen] = useState(false);
+
     // Timing refs
     const answerTimerRef = useRef<number | null>(null);
     const autoAdvanceRef = useRef<number | null>(null);  // 2s "next" timer on correct
+    const freezeTimerRef = useRef<number | null>(null);  // hint freeze (3s) timer
     const wordPresentedAtRef = useRef<number>(0);       // when word was shown
+    const answerDeadlineRef = useRef<number>(0);         // when the answer timer fires
+    const frozenRemainingRef = useRef<number>(0);       // ms left when frozen
     const feedbackShownAtRef = useRef<number>(0);        // when answer was submitted
     const handleAnswerRef = useRef<((selectedArticle: string, timedOut?: boolean) => void) | null>(null);
 
@@ -108,10 +123,19 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         }
     }, []);
 
+    const clearFreeze = useCallback(() => {
+        if (freezeTimerRef.current) {
+            clearTimeout(freezeTimerRef.current);
+            freezeTimerRef.current = null;
+        }
+        setIsFrozen(false);
+    }, []);
+
     // Initialize / reset game when filter or mode changes
     useEffect(() => {
         clearAnswerTimer();
         clearAutoAdvance();
+        clearFreeze();
         const rounds = buildQueue(filter, mode);
         setQueue(rounds);
         setCurrentWord(rounds.length > 0 ? rounds[0] : null);
@@ -124,7 +148,9 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         setTimeBank(INITIAL_TIME_BANK);
         setSelectedOption(null);
         setShowTipp(false);
-    }, [filter, mode, clearAnswerTimer, clearAutoAdvance]);
+        setHintsRemaining(MAX_HINTS);   // refill hints on a new run
+        setRevealedHint(null);
+    }, [filter, mode, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
 
     // Play audio whenever a new round is displayed (only while the game is on
     // screen). Empty speakOnShow (case mode) is a no-op so the article isn't
@@ -229,6 +255,10 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
      *  answer, reveal the tipp and wait for the learner to press Next. */
     const selectAnswer = useCallback((option: string) => {
         if (!currentWord || isAwaitingNext) return;
+        // Answering ends any active hint freeze.
+        clearFreeze();
+        frozenRemainingRef.current = 0;
+        setRevealedHint(null);
         setSelectedOption(option);
 
         const wasCorrect = option === currentWord.answer;
@@ -245,7 +275,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
             setShowTipp(true);
             clearAutoAdvance();
         }
-    }, [currentWord, isAwaitingNext, handleAnswer, handleNext, clearAutoAdvance]);
+    }, [currentWord, isAwaitingNext, handleAnswer, handleNext, clearAutoAdvance, clearFreeze]);
 
     /** Reveal the explanation on a wrong answer ("Know why" button). */
     const knowWhy = useCallback(() => {
@@ -256,42 +286,72 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
     /** Advance to the next round (Next button / Space). */
     const next = useCallback((grantBonus = true) => {
         clearAutoAdvance();
+        clearFreeze();
+        frozenRemainingRef.current = 0;
         setSelectedOption(null);
         setShowTipp(false);
+        setRevealedHint(null);
         handleNext(grantBonus);
-    }, [clearAutoAdvance, handleNext]);
+    }, [clearAutoAdvance, clearFreeze, handleNext]);
 
-    // Clear the auto-advance timer if the game leaves the screen / unmounts.
-    useEffect(() => {
-        if (!active) clearAutoAdvance();
-        return () => clearAutoAdvance();
-    }, [active, clearAutoAdvance]);
+    /** Reveal the next available hint for the current round, freezing the timer
+     *  for HINT_FREEZE_MS. Costs one of the limited hints. */
+    const useHint = useCallback(() => {
+        if (!currentWord || isAwaitingNext || isFrozen) return;
+        if (hintsRemaining <= 0 || currentWord.hints.length === 0) return;
 
-    // Start answer timer using time bank whenever a new word is presented
+        // Show the first not-yet-revealed hint (today there's one per round).
+        const hint = currentWord.hints[0];
+
+        // Freeze the answer timer, stashing how much time was left to resume with.
+        clearAnswerTimer();
+        frozenRemainingRef.current = Math.max(0, answerDeadlineRef.current - Date.now());
+
+        setRevealedHint(hint);
+        setHintsRemaining(n => n - 1);
+        setIsFrozen(true);
+
+        freezeTimerRef.current = window.setTimeout(() => {
+            setIsFrozen(false); // timer effect resumes with the stashed remaining
+            freezeTimerRef.current = null;
+        }, HINT_FREEZE_MS);
+    }, [currentWord, isAwaitingNext, isFrozen, hintsRemaining, clearAnswerTimer]);
+
+    // Clear the auto-advance and freeze timers if the game leaves the screen.
     useEffect(() => {
-        if (active && currentWord && !isAwaitingNext) {
+        if (!active) {
+            clearAutoAdvance();
+            clearFreeze();
+        }
+        return () => { clearAutoAdvance(); clearFreeze(); };
+    }, [active, clearAutoAdvance, clearFreeze]);
+
+    // Start the answer timer whenever a word is presented and not frozen. A hint
+    // freeze pauses this (isFrozen) and stashes the remaining time, which is
+    // consumed here on resume so the countdown picks up where it left off.
+    useEffect(() => {
+        if (active && currentWord && !isAwaitingNext && !isFrozen) {
             clearAnswerTimer();
-            wordPresentedAtRef.current = Date.now();
+
+            const resuming = frozenRemainingRef.current > 0;
+            const duration = resuming ? frozenRemainingRef.current : TIME_PER_WORD;
+            frozenRemainingRef.current = 0;
+            if (!resuming) wordPresentedAtRef.current = Date.now();
+            answerDeadlineRef.current = Date.now() + duration;
 
             answerTimerRef.current = window.setTimeout(() => {
                 // Time's up — drain from bank
-                setTimeBank(t => {
-                    const remaining = t - TIME_PER_WORD;
-                    if (remaining <= 0) {
-                        // Bank depleted — still allow play but mark wrong
-                    }
-                    return Math.max(0, remaining);
-                });
+                setTimeBank(t => Math.max(0, t - TIME_PER_WORD));
 
                 if (handleAnswerRef.current && currentWord) {
                     const wrongOption = currentWord.options.find(o => o !== currentWord.answer) || currentWord.options[0];
                     handleAnswerRef.current(wrongOption, true);
                 }
-            }, TIME_PER_WORD);
+            }, duration);
         }
 
         return () => clearAnswerTimer();
-    }, [active, currentWord, isAwaitingNext, clearAnswerTimer]);
+    }, [active, currentWord, isAwaitingNext, isFrozen, clearAnswerTimer]);
 
     const handleReplay = useCallback(() => {
         if (currentWord) {
@@ -319,10 +379,16 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         // Answer-flow state (this turn)
         selectedOption,
         showTipp,
+        // Hint system
+        hintsRemaining,
+        revealedHint,
+        isFrozen,
+        hasHints: !!currentWord && currentWord.hints.length > 0,
         // Turn actions — the API the UI calls
         selectAnswer,
         knowWhy,
         next,
+        useHint,
         replay: handleReplay,
         itemsLeft: queue.length,
         timeBank,

@@ -25,9 +25,14 @@ function App() {
     isAwaitingNext,
     selectedOption,
     showTipp,
+    hintsRemaining,
+    revealedHint,
+    isFrozen,
+    hasHints,
     selectAnswer,
     knowWhy,
     next: onNext,
+    useHint,
     replay: onReplay,
     itemsLeft,
     timeBank,
@@ -96,6 +101,11 @@ function App() {
       showTipp={showTipp}
       feedback={feedback}
       tippText={tippText}
+      hintsRemaining={hintsRemaining}
+      hasHints={hasHints}
+      isFrozen={isFrozen}
+      revealedHint={revealedHint}
+      onUseHint={useHint}
       filter={filter}
       categories={thematicCategories}
       filterOpen={filterOpen}

@@ -65,6 +65,34 @@ describe('buildRound', () => {
     });
 });
 
+describe('hints', () => {
+    it('every round has at least one hint', () => {
+        for (const t of TEMPLATES) {
+            const r = buildRound(HUND, t);
+            expect(r.hints.length, t.id).toBeGreaterThan(0);
+        }
+    });
+
+    it('case hints name the case but NEVER reveal the answer article', () => {
+        // The whole point: a hint helps without spoiling. For every template ×
+        // gender, no hint may contain the correct article as a standalone word.
+        for (const t of TEMPLATES) {
+            for (const noun of [HUND, FRAU, KIND]) {
+                const r = buildRound(noun, t);
+                for (const h of r.hints) {
+                    const leaks = new RegExp(`\\b${r.answer}\\b`).test(h.text);
+                    expect(leaks, `${t.id}/${noun.word} hint leaks "${r.answer}": ${h.text}`).toBe(false);
+                }
+            }
+        }
+    });
+
+    it('names the governing case for non-Nominativ templates', () => {
+        expect(buildRound(HUND, byId('dat-mit')).hints[0].text).toMatch(/Dativ/);
+        expect(buildRound(HUND, byId('akk-sehen')).hints[0].text).toMatch(/Akkusativ/);
+    });
+});
+
 describe('matches / semantic constraints', () => {
     it('person-only templates reject things and accept people', () => {
         expect(matches(HUND, byId('dat-helfen'))).toBe(false);

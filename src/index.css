@@ -534,9 +534,100 @@ h1.active-word.sentence {
   animation: timerShrink 3s linear forwards;
 }
 
+/* Frozen by a hint: pause the countdown and tint the bar icy blue. */
+.answer-timer-bar.frozen {
+  animation-play-state: paused;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+}
+
 @keyframes timerShrink {
   from { width: 100%; }
   to { width: 0%; }
+}
+
+/* ─── Hint button + frozen callout ─── */
+.hint-zone {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hint-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-hover);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s, opacity 0.2s;
+}
+
+.hint-btn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  transform: translateY(-1px);
+}
+
+.hint-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hint-btn.frozen {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.hint-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The revealed hint, shown only while frozen — icy, glowing callout. */
+.hint-callout {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 90%;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-md, 12px);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+  color: #e0f2fe;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  animation: hintAppear 0.25s ease-out, hintGlow 1.6s ease-in-out infinite alternate;
+}
+
+.hint-callout-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.hint-callout-text {
+  text-align: left;
+}
+
+@keyframes hintAppear {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes hintGlow {
+  from { box-shadow: 0 0 14px rgba(56, 189, 248, 0.2); }
+  to { box-shadow: 0 0 26px rgba(56, 189, 248, 0.45); }
 }
 
 .best-streak {

@@ -100,3 +100,14 @@ export function getTipp(word: string, gender: Gender): string {
     const label = gender === 'm' ? 'masculine' : gender === 'f' ? 'feminine' : 'neuter';
     return `This one is best memorized — no strong pattern applies to this ${label} noun.`;
 }
+
+/** A non-spoiling hint for the article: points at *where* the rule lives (the
+ *  ending/prefix) without naming the gender. If no rule applies, says so. */
+export function getHint(word: string, gender: Gender): string {
+    const rule = matchRule(word);
+    if (rule && rule.gender === gender) {
+        const where = rule.kind === 'suffix' ? `the ending “-${rule.pattern}”` : `the prefix “${rule.pattern}-”`;
+        return `Look at ${where} — it follows a gender pattern.`;
+    }
+    return 'No strong pattern here — this is one to memorize.';
+}
