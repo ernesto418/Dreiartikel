@@ -33,38 +33,23 @@ function App() {
     feedback,
     tippText,
     isAwaitingNext,
-    handleAnswer,
-    handleNext,
-    handleReplay,
+    selectedOption,
+    showTipp,
+    swipeDir,
+    selectAnswer,
+    knowWhy,
+    next: onNext,
+    replay: handleReplay,
     itemsLeft,
     timeBank,
   } = useGameState(filter, mode, started);
 
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [showTipp, setShowTipp] = useState(false);
-  const [swipeDir, setSwipeDir] = useState<string | null>(null);
-  const timerRef = useRef<number | null>(null);
   const prevStreakRef = useRef(0);
 
-  const clearAutoAdvance = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
+  // Reset confetti baseline when filter or mode changes
   useEffect(() => {
-    return () => clearAutoAdvance();
-  }, [clearAutoAdvance]);
-
-  // Reset local state when filter or mode changes
-  useEffect(() => {
-    setSelectedOption(null);
-    setShowTipp(false);
-    setSwipeDir(null);
-    clearAutoAdvance();
     prevStreakRef.current = 0;
-  }, [filter, mode, clearAutoAdvance]);
+  }, [filter, mode]);
 
   // Fire confetti only when matching or doubling the previous best
   useEffect(() => {
@@ -78,39 +63,8 @@ function App() {
     prevStreakRef.current = streak;
   }, [streak, bestStreak]);
 
-  // ─── Core action handlers ─────────────────────────────────────────
-  const onSelectOption = useCallback((option: string, direction?: string) => {
-    if (!currentWord || isAwaitingNext) return;
-    setSelectedOption(option);
-    if (direction) setSwipeDir(direction);
-    handleAnswer(option);
-
-    if (option === currentWord.answer) {
-      setShowTipp(false);
-      timerRef.current = window.setTimeout(() => {
-        handleNext(false);
-        setSelectedOption(null);
-        setShowTipp(false);
-        setSwipeDir(null);
-      }, 2000);
-    } else {
-      setShowTipp(true);
-      clearAutoAdvance();
-    }
-  }, [currentWord, isAwaitingNext, handleAnswer, handleNext, clearAutoAdvance]);
-
-  const onKnowWhy = useCallback(() => {
-    clearAutoAdvance();
-    setShowTipp(true);
-  }, [clearAutoAdvance]);
-
-  const onNext = useCallback((grantBonus = true) => {
-    clearAutoAdvance();
-    setSelectedOption(null);
-    setShowTipp(false);
-    setSwipeDir(null);
-    handleNext(grantBonus);
-  }, [clearAutoAdvance, handleNext]);
+  const onSelectOption = selectAnswer;
+  const onKnowWhy = knowWhy;
 
   // ─── Positional input (swipe + keyboard) ──────────────────────────
   // Map a direction (by its slot in Left/Down/Right) to the option in that
@@ -278,7 +232,7 @@ function App() {
   return (
     <main>
       <div className="game-header">
-        <button className="menu-btn" onClick={() => { clearAutoAdvance(); setStarted(false); }} aria-label="Back to menu">
+        <button className="menu-btn" onClick={() => setStarted(false)} aria-label="Back to menu">
           ← Menu
         </button>
         <h2 className="app-title">Dreiartikel</h2>

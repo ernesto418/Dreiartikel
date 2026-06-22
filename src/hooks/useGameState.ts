@@ -82,8 +82,15 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
     const [isAwaitingNext, setIsAwaitingNext] = useState(false);
     const [timeBank, setTimeBank] = useState(INITIAL_TIME_BANK);
 
+    // Answer-flow state — what's happening *this turn*. Owned here so there is a
+    // single source of truth (previously this was split into App.tsx).
+    const [selectedOption, setSelectedOption] = useState<string | null>(null);
+    const [showTipp, setShowTipp] = useState(false);
+    const [swipeDir, setSwipeDir] = useState<string | null>(null);
+
     // Timing refs
     const answerTimerRef = useRef<number | null>(null);
+    const autoAdvanceRef = useRef<number | null>(null);  // 2s "next" timer on correct
     const wordPresentedAtRef = useRef<number>(0);       // when word was shown
     const feedbackShownAtRef = useRef<number>(0);        // when answer was submitted
     const handleAnswerRef = useRef<((selectedArticle: string, timedOut?: boolean) => void) | null>(null);
@@ -95,9 +102,17 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         }
     }, []);
 
+    const clearAutoAdvance = useCallback(() => {
+        if (autoAdvanceRef.current) {
+            clearTimeout(autoAdvanceRef.current);
+            autoAdvanceRef.current = null;
+        }
+    }, []);
+
     // Initialize / reset game when filter or mode changes
     useEffect(() => {
         clearAnswerTimer();
+        clearAutoAdvance();
         const rounds = buildQueue(filter, mode);
         setQueue(rounds);
         setCurrentWord(rounds.length > 0 ? rounds[0] : null);
@@ -108,7 +123,10 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         setTippText(null);
         setIsAwaitingNext(false);
         setTimeBank(INITIAL_TIME_BANK);
-    }, [filter, mode, clearAnswerTimer]);
+        setSelectedOption(null);
+        setShowTipp(false);
+        setSwipeDir(null);
+    }, [filter, mode, clearAnswerTimer, clearAutoAdvance]);
 
     // Play audio whenever a new round is displayed (only while the game is on
     // screen). Empty speakOnShow (case mode) is a no-op so the article isn't
@@ -207,6 +225,53 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         });
     }, [clearAnswerTimer]);
 
+    // ─── High-level turn actions (the API the UI calls) ────────────────
+
+    /** Submit an answer. On a correct answer, auto-advance after 2s; on a wrong
+     *  answer, reveal the tipp and wait for the learner to press Next. */
+    const selectAnswer = useCallback((option: string, direction?: string) => {
+        if (!currentWord || isAwaitingNext) return;
+        setSelectedOption(option);
+        if (direction) setSwipeDir(direction);
+
+        const wasCorrect = option === currentWord.answer;
+        handleAnswer(option);
+
+        if (wasCorrect) {
+            setShowTipp(false);
+            autoAdvanceRef.current = window.setTimeout(() => {
+                handleNext(false);
+                setSelectedOption(null);
+                setShowTipp(false);
+                setSwipeDir(null);
+            }, 2000);
+        } else {
+            setShowTipp(true);
+            clearAutoAdvance();
+        }
+    }, [currentWord, isAwaitingNext, handleAnswer, handleNext, clearAutoAdvance]);
+
+    /** Reveal the explanation on a wrong answer ("Know why" button). */
+    const knowWhy = useCallback(() => {
+        clearAutoAdvance();
+        setShowTipp(true);
+    }, [clearAutoAdvance]);
+
+    /** Advance to the next round (Next button / Space). */
+    const next = useCallback((grantBonus = true) => {
+        clearAutoAdvance();
+        setSelectedOption(null);
+        setShowTipp(false);
+        setSwipeDir(null);
+        handleNext(grantBonus);
+    }, [clearAutoAdvance, handleNext]);
+
+    // Clear the auto-advance timer if the game leaves the screen / unmounts.
+    useEffect(() => {
+        if (!active) clearAutoAdvance();
+        return () => clearAutoAdvance();
+    }, [active, clearAutoAdvance]);
+
     // Start answer timer using time bank whenever a new word is presented
     useEffect(() => {
         if (active && currentWord && !isAwaitingNext) {
@@ -256,9 +321,15 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         feedback,
         tippText,
         isAwaitingNext,
-        handleAnswer,
-        handleNext,
-        handleReplay,
+        // Answer-flow state (this turn)
+        selectedOption,
+        showTipp,
+        swipeDir,
+        // Turn actions — the API the UI calls
+        selectAnswer,
+        knowWhy,
+        next,
+        replay: handleReplay,
         itemsLeft: queue.length,
         timeBank,
     };
