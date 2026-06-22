@@ -1,0 +1,40 @@
+// German case morphology — the definite-article declension table.
+//
+// Article forms are fully rule-based from (case × gender × number); no per-word
+// data is needed. This module is the generalisation of rules.ts's
+// `articleForGender`, which is simply `articleFor(gender, 'nom', 'sg')`.
+
+import type { Gender } from './rules';
+
+export type Case = 'nom' | 'akk' | 'dat' | 'gen';
+export type GrammaticalNumber = 'sg' | 'pl';
+
+export const CASE_LABELS: Record<Case, string> = {
+    nom: 'Nominativ',
+    akk: 'Akkusativ',
+    dat: 'Dativ',
+    gen: 'Genitiv',
+};
+
+// Full definite-article table (Standard Hochdeutsch). Rows = case,
+// columns = gender (singular) plus a shared plural column.
+const DEFINITE: Record<Case, Record<Gender | 'pl', string>> = {
+    nom: { m: 'der', f: 'die', n: 'das', pl: 'die' },
+    akk: { m: 'den', f: 'die', n: 'das', pl: 'die' },
+    dat: { m: 'dem', f: 'der', n: 'dem', pl: 'den' },
+    gen: { m: 'des', f: 'der', n: 'des', pl: 'der' },
+};
+
+/** The definite article for any gender/case/number. */
+export function articleFor(gender: Gender, caseName: Case, number: GrammaticalNumber = 'sg'): string {
+    return number === 'pl' ? DEFINITE[caseName].pl : DEFINITE[caseName][gender];
+}
+
+/** The distinct article forms a learner can choose between for a given case.
+ *  Always includes every gender's correct answer, so no round is unanswerable.
+ *  e.g. akk → [den, die, das] (3); dat → [dem, der] (2). */
+export function optionsForCase(caseName: Case, number: GrammaticalNumber = 'sg'): string[] {
+    const row = DEFINITE[caseName];
+    const forms = number === 'pl' ? [row.pl] : [row.m, row.f, row.n];
+    return Array.from(new Set(forms));
+}

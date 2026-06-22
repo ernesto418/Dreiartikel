@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateItems, getCategories } from './data';
+import { generateItems, getCategories, PERSON_WORDS, PLURAL_ONLY } from './data';
+import type { Gender } from './rules';
 
 // The dataset is hand-entered, so these guard against the most likely human
 // errors: typos in the article, malformed entries, accidental duplicates.
@@ -45,6 +46,39 @@ describe('dataset integrity', () => {
         const cats = new Set(getCategories());
         for (const item of items) {
             expect(cats, `category "${item.category}"`).toContain(item.category);
+        }
+    });
+
+    it('every item has a valid animacy', () => {
+        for (const item of items) {
+            expect(['person', 'thing'], `entry ${item.id} (${item.word})`).toContain(item.animacy);
+        }
+    });
+});
+
+// Guard the curated lexical sets against typos: a word listed there that doesn't
+// exist in rawData is silently dead, so fail loudly.
+describe('curated lexical sets', () => {
+    const items = generateItems();
+    const words = new Set(items.map(i => i.word));
+
+    it('every PERSON_WORDS entry exists in the dataset', () => {
+        const missing = [...PERSON_WORDS].filter(w => !words.has(w));
+        expect(missing, `unknown person words: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('every PLURAL_ONLY entry exists in the dataset', () => {
+        const missing = [...PLURAL_ONLY].filter(w => !words.has(w));
+        expect(missing, `unknown plural-only words: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('has at least one person per gender so person-templates are satisfiable', () => {
+        const byGender: Record<Gender, number> = { m: 0, f: 0, n: 0 };
+        for (const item of items) {
+            if (item.animacy === 'person' && !item.pluralOnly) byGender[item.gender]++;
+        }
+        for (const g of ['m', 'f', 'n'] as Gender[]) {
+            expect(byGender[g], `no singular person noun for gender ${g}`).toBeGreaterThan(0);
         }
     });
 });

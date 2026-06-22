@@ -1,17 +1,48 @@
 import { type Article, type Gender, articleForGender, genderForArticle } from './rules';
 
+export type Animacy = 'person' | 'thing';
+
 export interface PracticeItem {
     id: string;
     word: string;
     /** Canonical grammatical gender — the source of truth for this noun. */
     gender: Gender;
     /** Nominativ-singular article, derived from gender. The article shown today;
-     *  case modes will derive other forms from `gender` instead. */
+     *  case modes derive other forms from `gender` instead. */
     answer: Article;
     hint: string;
     options: Article[];
     category: string;
+    /** Whether the noun denotes a person — needed to slot it into sentence
+     *  templates (dative verbs want a person, "essen" wants a thing). */
+    animacy: Animacy;
+    /** Plural-only noun (e.g. Eltern). Excluded from sentence mode in phase 1,
+     *  which only handles singular declension. */
+    pluralOnly?: boolean;
 }
+
+// Animate nouns. Everything else defaults to 'thing'; a miss only narrows which
+// templates a noun can fill, never produces a wrong answer. data.test.ts guards
+// that every word listed here actually exists in rawData.
+export const PERSON_WORDS = new Set<string>([
+    // Family
+    'Baby', 'Bruder', 'Cousin', 'Kind', 'Erwachsener', 'Opa', 'Freund', 'Gast',
+    'Onkel', 'Schwester', 'Großmutter', 'Großvater', 'Junge', 'Mädchen', 'Mann',
+    'Mutter', 'Mutti', 'Oma', 'Tochter', 'Schwager', 'Schwägerin',
+    'Schwiegermutter', 'Schwiegervater', 'Sohn', 'Stiefvater', 'Stiefmutter',
+    'Tante', 'Vater', 'Papa', 'Vati', 'Zwilling',
+    // Countries & People
+    'Belgier', 'Engländer', 'Engländerin', 'Franzose', 'Französin', 'Holländer',
+    'Holländerin', 'Ire', 'Irin',
+    // Other
+    'Kellner', 'Vegetarier', 'Vegetarierin', 'Fan', 'Freundin',
+]);
+
+// Plural-only nouns — declension differs and is out of phase-1 scope.
+export const PLURAL_ONLY = new Set<string>([
+    'Eltern', 'Großeltern', 'Pommes', 'Niederlande', 'Handschuhe', 'Spaghetti',
+    'Meeresfrüchte', 'Nachrichten', 'Lebensmittel',
+]);
 
 // Format: "article#Word#hint"
 // Categories are assigned by index ranges below
@@ -390,6 +421,8 @@ export function generateItems(): PracticeItem[] {
             hint,
             options: [...VALID_ARTICLES],
             category,
+            animacy: PERSON_WORDS.has(word) ? 'person' : 'thing',
+            pluralOnly: PLURAL_ONLY.has(word) || undefined,
         };
     });
 }

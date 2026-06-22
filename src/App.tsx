@@ -1,15 +1,29 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSwipeable } from 'react-swipeable';
-import { useGameState, type FilterType } from './hooks/useGameState';
+import { useGameState, type FilterType, type GameMode } from './hooks/useGameState';
 import { getCategories } from './data';
 import { getHypeLevel, fireConfetti, getStreakColor } from './utils/confetti';
 
 const thematicCategories = getCategories();
 
+// Swipe/key directions map to option *positions*, not fixed articles, so the
+// same handlers work whether a round has 3 options (der/die/das, den/die/das)
+// or 2 (Dativ: dem/der). Order: Left → Down → Right.
+const SWIPE_ORDER = ['Left', 'Down', 'Right'];
+const KEY_ORDER = ['ArrowLeft', 'ArrowDown', 'ArrowRight'];
+
+/** The direction glyph shown on the option at `idx`. With 3 options it's
+ *  ←/↓/→; with 2 (Dativ) the middle is skipped so they read ← and →. */
+function glyphForOptionSlot(idx: number, count: number): string {
+  if (count === 2) return idx === 0 ? '←' : '→';
+  return ['←', '↓', '→'][idx] ?? '';
+}
+
 function App() {
   const [started, setStarted] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [mode, setMode] = useState<GameMode>('article');
 
   const {
     currentWord,
@@ -24,7 +38,7 @@ function App() {
     handleReplay,
     itemsLeft,
     timeBank,
-  } = useGameState(filter);
+  } = useGameState(filter, mode);
 
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showTipp, setShowTipp] = useState(false);
@@ -43,14 +57,14 @@ function App() {
     return () => clearAutoAdvance();
   }, [clearAutoAdvance]);
 
-  // Reset local state when filter changes
+  // Reset local state when filter or mode changes
   useEffect(() => {
     setSelectedOption(null);
     setShowTipp(false);
     setSwipeDir(null);
     clearAutoAdvance();
     prevStreakRef.current = 0;
-  }, [filter, clearAutoAdvance]);
+  }, [filter, mode, clearAutoAdvance]);
 
   // Fire confetti only when matching or doubling the previous best
   useEffect(() => {
@@ -98,18 +112,28 @@ function App() {
     handleNext(grantBonus);
   }, [clearAutoAdvance, handleNext]);
 
-  // ─── Swipe handlers (Tinder-style) ────────────────────────────────
-  const swipeMap: Record<string, string> = {
-    Left: 'der',
-    Down: 'die',
-    Right: 'das',
-  };
+  // ─── Positional input (swipe + keyboard) ──────────────────────────
+  // Map a direction (by its slot in Left/Down/Right) to the option in that
+  // position. With 3 options the mapping is direct; with 2 (Dativ), the middle
+  // direction is dropped so Left/Right hit options[0]/[1].
+  const optionForDirSlot = useCallback((slot: number): string | undefined => {
+    if (!currentWord) return undefined;
+    const opts = currentWord.options;
+    if (opts.length >= 3) return opts[slot];
+    if (opts.length === 2) {
+      if (slot === 0) return opts[0];
+      if (slot === 2) return opts[1];
+      return undefined; // Down inert with two options
+    }
+    return opts[0];
+  }, [currentWord]);
 
   const swipeHandlers = useSwipeable({
     onSwiped: (e) => {
-      const article = swipeMap[e.dir];
-      if (article && !isAwaitingNext && currentWord) {
-        onSelectOption(article, e.dir);
+      const slot = SWIPE_ORDER.indexOf(e.dir);
+      const option = slot >= 0 ? optionForDirSlot(slot) : undefined;
+      if (option && !isAwaitingNext && currentWord) {
+        onSelectOption(option, e.dir);
       }
     },
     trackMouse: false,
@@ -117,21 +141,18 @@ function App() {
     delta: 40,
   });
 
-  // ─── Keyboard shortcuts (desktop) ─────────────────────────────────
   useEffect(() => {
     if (!started) return;
 
-    const keyMap: Record<string, string> = {
-      ArrowLeft: 'der',
-      ArrowDown: 'die',
-      ArrowRight: 'das',
-    };
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (keyMap[e.key] && !isAwaitingNext && currentWord) {
-        e.preventDefault();
-        onSelectOption(keyMap[e.key]);
-        return;
+      const slot = KEY_ORDER.indexOf(e.key);
+      if (slot >= 0 && !isAwaitingNext && currentWord) {
+        const option = optionForDirSlot(slot);
+        if (option) {
+          e.preventDefault();
+          onSelectOption(option);
+          return;
+        }
       }
       if (e.key === ' ' && isAwaitingNext) {
         e.preventDefault();
@@ -141,7 +162,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [started, isAwaitingNext, currentWord, onSelectOption, onNext]);
+  }, [started, isAwaitingNext, currentWord, onSelectOption, onNext, optionForDirSlot]);
 
   // ─── Filter label helper ──────────────────────────────────────────
   const filterLabel = filter === 'all' ? 'All Words'
@@ -155,32 +176,68 @@ function App() {
       <main>
         <div className="start-screen">
           <h1 className="start-title">Dreiartikel</h1>
-          <p className="start-subtitle">Master German articles — der, die, das</p>
+          <p className="start-subtitle">
+            {mode === 'article'
+              ? 'Master German articles — der, die, das'
+              : 'Practice German cases — pick the right article in a sentence'}
+          </p>
+
+          <div className="mode-toggle" role="group" aria-label="Practice mode">
+            <button
+              className={`mode-btn ${mode === 'article' ? 'active' : ''}`}
+              onClick={() => setMode('article')}
+            >
+              Articles
+            </button>
+            <button
+              className={`mode-btn ${mode === 'case-single' ? 'active' : ''}`}
+              onClick={() => setMode('case-single')}
+            >
+              Cases
+            </button>
+          </div>
 
           <div className="rules-card">
             <h3>📜 How to play</h3>
             <ul>
-              <li>A German word appears — pick the correct article.</li>
+              {mode === 'article' ? (
+                <li>A German word appears — pick the correct article.</li>
+              ) : (
+                <li>A sentence appears with a blank — pick the article the noun needs in that case.</li>
+              )}
               <li>You have <strong>3 seconds</strong> to answer or it counts as wrong.</li>
               <li>Answer fast and press <strong>Next</strong> early to recover time!</li>
               <li>Wrong answers come back later until you get them right.</li>
               <li>Build a <strong>streak</strong> to trigger confetti! 🎉</li>
             </ul>
 
-            <h3>📱 On mobile</h3>
-            <ul>
-              <li><strong>Swipe ← left</strong> = der</li>
-              <li><strong>Swipe ↓ down</strong> = die</li>
-              <li><strong>Swipe → right</strong> = das</li>
-            </ul>
+            {mode === 'article' ? (
+              <>
+                <h3>📱 On mobile</h3>
+                <ul>
+                  <li><strong>Swipe ← left</strong> = der</li>
+                  <li><strong>Swipe ↓ down</strong> = die</li>
+                  <li><strong>Swipe → right</strong> = das</li>
+                </ul>
 
-            <h3 className="desktop-only">⌨️ On desktop</h3>
-            <ul className="desktop-only">
-              <li><strong>← Left Arrow</strong> = der</li>
-              <li><strong>↓ Down Arrow</strong> = die</li>
-              <li><strong>→ Right Arrow</strong> = das</li>
-              <li><strong>Space</strong> = Next word</li>
-            </ul>
+                <h3 className="desktop-only">⌨️ On desktop</h3>
+                <ul className="desktop-only">
+                  <li><strong>← Left Arrow</strong> = der</li>
+                  <li><strong>↓ Down Arrow</strong> = die</li>
+                  <li><strong>→ Right Arrow</strong> = das</li>
+                  <li><strong>Space</strong> = Next word</li>
+                </ul>
+              </>
+            ) : (
+              <>
+                <h3>🎯 Cases</h3>
+                <ul>
+                  <li>The article changes with the case: <strong>den</strong> Hund (Akk), <strong>dem</strong> Hund (Dat)…</li>
+                  <li>Swipe or use arrow keys — options match the on-screen buttons (left → right).</li>
+                  <li>Buttons are <strong>shuffled</strong>, so read before you answer!</li>
+                </ul>
+              </>
+            )}
 
             <h3>🏷️ Filters</h3>
             <ul>
@@ -273,27 +330,34 @@ function App() {
 
       {/* ─── Swipeable Word Card ─── */}
       <div {...swipeHandlers} className={`word-card ${swipeDirClass}`}>
-        {/* Mobile swipe direction indicators */}
+        {/* Mobile swipe direction indicators — positional, match the buttons */}
         <div className="swipe-hints">
-          <span className="swipe-hint left">← der</span>
-          <span className="swipe-hint down">↓ die</span>
-          <span className="swipe-hint right">das →</span>
+          {currentWord.options.map((option, idx) => {
+            const glyph = glyphForOptionSlot(idx, currentWord.options.length);
+            const pos = glyph === '←' ? 'left' : glyph === '→' ? 'right' : 'down';
+            return (
+              <span key={option} className={`swipe-hint ${pos}`}>
+                {pos === 'right' ? `${option} →` : `${glyph} ${option}`}
+              </span>
+            );
+          })}
         </div>
 
         <div className="word-container">
-          <h1 className="active-word">{currentWord.word}</h1>
+          <h1 className={`active-word ${mode === 'case-single' ? 'sentence' : ''}`}>
+            {currentWord.displayText}
+          </h1>
           <button className="replay-btn" onClick={handleReplay} aria-label="Replay Audio" title="Replay Audio">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
             </svg>
           </button>
         </div>
-        <p className="hint-text">{currentWord.hint}</p>
+        {currentWord.hint && <p className="hint-text">{currentWord.hint}</p>}
 
-        {/* Desktop: clickable article buttons */}
+        {/* Clickable article buttons */}
         <div className="options-grid">
           {currentWord.options.map((option, idx) => {
-            const keyLabels = ['←', '↓', '→'];
             let btnClass = "option-btn";
             if (isAwaitingNext) {
               if (option === currentWord.answer) {
@@ -310,7 +374,7 @@ function App() {
                 className={btnClass}
                 disabled={isAwaitingNext}
               >
-                <span className="key-hint">{keyLabels[idx]}</span>
+                <span className="key-hint">{glyphForOptionSlot(idx, currentWord.options.length)}</span>
                 {option}
               </button>
             );

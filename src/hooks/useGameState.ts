@@ -1,17 +1,69 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateItems, shuffle, type PracticeItem } from '../data';
 import { hasRule, getTipp } from '../rules';
+import { generateRounds } from '../sentences';
 import { playWord } from '../utils/speech';
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
+export type GameMode = 'article' | 'case-single';
+
+/** The presentable unit the game loop consumes, identical across modes. */
+export interface Round {
+    id: string;
+    /** What the learner sees: a bare word, or a sentence with a `___` blank. */
+    displayText: string;
+    /** Secondary line under the word (translation hint), if any. */
+    hint?: string;
+    answer: string;
+    options: string[];
+    /** Explanation shown after answering. */
+    tipp: string;
+    /** What the speech engine reads aloud. */
+    speakText: string;
+}
 
 const INITIAL_TIME_BANK = 3000; // 3 seconds starting budget
 const TIME_PER_WORD = 3000;     // 3 seconds allowed per word
 const BONUS_CAP = 2000;         // max bonus you can recover per word
 
-export function useGameState(filter: FilterType) {
-    const [queue, setQueue] = useState<PracticeItem[]>([]);
-    const [currentWord, setCurrentWord] = useState<PracticeItem | null>(null);
+function buildQueue(filter: FilterType, mode: GameMode): Round[] {
+    let items = generateItems();
+
+    if (filter === 'by-rule') {
+        items = items.filter(i => hasRule(i.word, i.gender));
+    } else if (filter === 'without-rule') {
+        items = items.filter(i => !hasRule(i.word, i.gender));
+    } else if (filter !== 'all') {
+        items = items.filter(i => i.category === filter);
+    }
+
+    if (mode === 'case-single') {
+        return generateRounds(items).map(r => ({
+            id: r.item.id,
+            displayText: r.promptText,
+            answer: r.answer,
+            options: r.options,
+            tipp: r.tipp,
+            speakText: r.spokenText,
+        }));
+    }
+
+    // Article mode: bare word, fixed der/die/das order (no shuffle) so the
+    // learner keeps muscle-memory positions.
+    return shuffle(items).map((item: PracticeItem) => ({
+        id: item.id,
+        displayText: item.word,
+        hint: item.hint,
+        answer: item.answer,
+        options: item.options,
+        tipp: getTipp(item.word, item.gender),
+        speakText: item.word,
+    }));
+}
+
+export function useGameState(filter: FilterType, mode: GameMode = 'article') {
+    const [queue, setQueue] = useState<Round[]>([]);
+    const [currentWord, setCurrentWord] = useState<Round | null>(null);
     const [score, setScore] = useState(0);
     const [streak, setStreak] = useState(0);
     const [bestStreak, setBestStreak] = useState(0);
@@ -33,22 +85,12 @@ export function useGameState(filter: FilterType) {
         }
     }, []);
 
-    // Initialize / reset game when filter changes
+    // Initialize / reset game when filter or mode changes
     useEffect(() => {
         clearAnswerTimer();
-        let items = generateItems();
-
-        if (filter === 'by-rule') {
-            items = items.filter(i => hasRule(i.word, i.gender));
-        } else if (filter === 'without-rule') {
-            items = items.filter(i => !hasRule(i.word, i.gender));
-        } else if (filter !== 'all') {
-            items = items.filter(i => i.category === filter);
-        }
-
-        const shuffled = shuffle(items);
-        setQueue(shuffled);
-        setCurrentWord(shuffled.length > 0 ? shuffled[0] : null);
+        const rounds = buildQueue(filter, mode);
+        setQueue(rounds);
+        setCurrentWord(rounds.length > 0 ? rounds[0] : null);
         setScore(0);
         setStreak(0);
         setBestStreak(0);
@@ -56,12 +98,12 @@ export function useGameState(filter: FilterType) {
         setTippText(null);
         setIsAwaitingNext(false);
         setTimeBank(INITIAL_TIME_BANK);
-    }, [filter, clearAnswerTimer]);
+    }, [filter, mode, clearAnswerTimer]);
 
-    // Play word audio whenever a new word is displayed
+    // Play audio whenever a new round is displayed
     useEffect(() => {
         if (currentWord && !isAwaitingNext) {
-            playWord(currentWord.word);
+            playWord(currentWord.speakText);
         }
     }, [currentWord, isAwaitingNext]);
 
@@ -93,8 +135,8 @@ export function useGameState(filter: FilterType) {
         }
 
         const tipp = timedOut
-            ? `Time's up! The correct article is "${currentWord.answer}".`
-            : getTipp(currentWord.word, currentWord.gender);
+            ? `Time's up! The correct answer is "${currentWord.answer}".`
+            : currentWord.tipp;
         setTippText(tipp);
         setIsAwaitingNext(true);
 
@@ -171,7 +213,7 @@ export function useGameState(filter: FilterType) {
 
     const handleReplay = useCallback(() => {
         if (currentWord) {
-            playWord(currentWord.word);
+            playWord(currentWord.speakText);
         }
     }, [currentWord]);
 

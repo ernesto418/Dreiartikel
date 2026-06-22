@@ -3,20 +3,18 @@
 // Both the "By Rule" filter (does a strong pattern apply?) and the Tipp engine
 // (explain *why*) consume this list, so the two can never drift apart.
 
+import { articleFor } from './declension';
+
 export type Gender = 'm' | 'f' | 'n';
 export type Article = 'der' | 'die' | 'das';
 
 /** Canonical article for a noun's gender in the Nominativ singular.
  *
- *  This is the seam where grammatical cases will later plug in: a future
- *  `articleFor(gender, case, number)` generalises this function. Today the app
- *  only drills Nominativ singular, so gender → article is a direct mapping. */
+ *  This is the Nominativ-singular special case of the general case engine in
+ *  declension.ts — it delegates to `articleFor` so there is one source of truth
+ *  for article morphology. */
 export function articleForGender(gender: Gender): Article {
-    switch (gender) {
-        case 'm': return 'der';
-        case 'f': return 'die';
-        case 'n': return 'das';
-    }
+    return articleFor(gender, 'nom', 'sg') as Article;
 }
 
 export function genderForArticle(article: Article): Gender {
