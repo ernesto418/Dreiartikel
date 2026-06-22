@@ -192,6 +192,48 @@ h1.active-word.sentence {
   text-transform: uppercase;
 }
 
+/* ─── Game header: back-to-menu + centered title ─── */
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.game-header .app-title {
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.menu-btn {
+  appearance: none;
+  cursor: pointer;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-hint);
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-hover);
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.menu-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* Invisible mirror of the button so the title stays centered. */
+.game-header-spacer {
+  visibility: hidden;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ─── Filter Dropdown (replaces horizontal bar) ─── */
 .filter-dropdown {
   position: relative;

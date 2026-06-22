@@ -38,7 +38,7 @@ function App() {
     handleReplay,
     itemsLeft,
     timeBank,
-  } = useGameState(filter, mode);
+  } = useGameState(filter, mode, started);
 
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showTipp, setShowTipp] = useState(false);
@@ -277,7 +277,13 @@ function App() {
   // ─── Main Game UI ─────────────────────────────────────────────────
   return (
     <main>
-      <h2 className="app-title">Dreiartikel</h2>
+      <div className="game-header">
+        <button className="menu-btn" onClick={() => { clearAutoAdvance(); setStarted(false); }} aria-label="Back to menu">
+          ← Menu
+        </button>
+        <h2 className="app-title">Dreiartikel</h2>
+        <span className="game-header-spacer" aria-hidden="true">← Menu</span>
+      </div>
 
       {/* ─── Collapsible Filter Dropdown ─── */}
       <div className="filter-dropdown">

@@ -2,6 +2,7 @@
 // learner for the article it must take in the case the frame governs.
 
 import { articleFor, optionsForCase, CASE_LABELS, type Case } from './declension';
+import { getTipp } from './rules';
 import { shuffle, type Animacy, type PracticeItem } from './data';
 
 export interface SentenceTemplate {
@@ -12,25 +13,26 @@ export interface SentenceTemplate {
     case: Case;
     /** Semantic constraint on the noun that can fill the slot. */
     requires: Animacy | 'any';
-    /** Why this case applies — shown in the Tipp box. */
-    reason: string;
+    /** The trigger that forces this case, phrased to slot into a tip:
+     *  "<trigger> takes the Akkusativ". e.g. "the verb 'sehen'". */
+    trigger: string;
 }
 
 export const TEMPLATES: SentenceTemplate[] = [
     // ── Akkusativ (transitive verb / akkusativ preposition) ──
-    { id: 'akk-sehen', frame: 'Ich sehe ___.', case: 'akk', requires: 'any', reason: "the object of a transitive verb takes the Akkusativ" },
-    { id: 'akk-kaufen', frame: 'Ich kaufe ___.', case: 'akk', requires: 'thing', reason: "the object of 'kaufen' takes the Akkusativ" },
-    { id: 'akk-essen', frame: 'Ich esse ___.', case: 'akk', requires: 'thing', reason: "the object of 'essen' takes the Akkusativ" },
-    { id: 'akk-fuer', frame: 'Das ist für ___.', case: 'akk', requires: 'any', reason: "the preposition 'für' always takes the Akkusativ" },
+    { id: 'akk-sehen', frame: 'Ich sehe ___.', case: 'akk', requires: 'any', trigger: "the direct object of 'sehen'" },
+    { id: 'akk-kaufen', frame: 'Ich kaufe ___.', case: 'akk', requires: 'thing', trigger: "the direct object of 'kaufen'" },
+    { id: 'akk-essen', frame: 'Ich esse ___.', case: 'akk', requires: 'thing', trigger: "the direct object of 'essen'" },
+    { id: 'akk-fuer', frame: 'Das ist für ___.', case: 'akk', requires: 'any', trigger: "the preposition 'für'" },
 
     // ── Dativ (dative verb / dative preposition) ──
-    { id: 'dat-helfen', frame: 'Ich helfe ___.', case: 'dat', requires: 'person', reason: "'helfen' is a dative verb and needs the Dativ" },
-    { id: 'dat-danken', frame: 'Ich danke ___.', case: 'dat', requires: 'person', reason: "'danken' is a dative verb and needs the Dativ" },
-    { id: 'dat-mit', frame: 'Ich fahre mit ___.', case: 'dat', requires: 'any', reason: "the preposition 'mit' always takes the Dativ" },
-    { id: 'dat-zu', frame: 'Ich gehe zu ___.', case: 'dat', requires: 'any', reason: "the preposition 'zu' always takes the Dativ" },
+    { id: 'dat-helfen', frame: 'Ich helfe ___.', case: 'dat', requires: 'person', trigger: "the dative verb 'helfen'" },
+    { id: 'dat-danken', frame: 'Ich danke ___.', case: 'dat', requires: 'person', trigger: "the dative verb 'danken'" },
+    { id: 'dat-mit', frame: 'Ich fahre mit ___.', case: 'dat', requires: 'any', trigger: "the preposition 'mit'" },
+    { id: 'dat-zu', frame: 'Ich gehe zu ___.', case: 'dat', requires: 'any', trigger: "the preposition 'zu'" },
 
     // ── Nominativ (subject) ──
-    { id: 'nom-gross', frame: '___ ist groß.', case: 'nom', requires: 'any', reason: "the subject of a sentence is in the Nominativ" },
+    { id: 'nom-gross', frame: '___ ist groß.', case: 'nom', requires: 'any', trigger: "the subject" },
 ];
 
 export interface CaseRound {
@@ -46,13 +48,29 @@ export interface CaseRound {
     tipp: string;
 }
 
+/** Educational explanation for a round. Nominativ leans on the gender rule
+ *  (case is a no-op there); other cases show the trigger → form change. */
+function buildTipp(item: PracticeItem, template: SentenceTemplate, answer: string): string {
+    if (template.case === 'nom') {
+        // The article is just the dictionary article — explain the gender.
+        return getTipp(item.word, item.gender);
+    }
+
+    const base = articleFor(item.gender, 'nom', 'sg'); // dictionary article
+    const caseName = CASE_LABELS[template.case];
+    const change = base === answer
+        ? `"${base} ${item.word}" stays "${answer} ${item.word}" — ${caseName} doesn't change this article.`
+        : `"${base} ${item.word}" becomes "${answer} ${item.word}".`;
+    return `${template.trigger} takes the ${caseName}: ${change}`;
+}
+
 /** Build a single case round from an item + template. */
 export function buildRound(item: PracticeItem, template: SentenceTemplate): CaseRound {
     const answer = articleFor(item.gender, template.case, 'sg');
     const options = shuffle(optionsForCase(template.case, 'sg'));
     const promptText = template.frame.replace('___', `___ ${item.word}`);
     const spokenText = template.frame.replace('___', `${answer} ${item.word}`);
-    const tipp = `${CASE_LABELS[template.case]}: ${template.reason}.`;
+    const tipp = buildTipp(item, template, answer);
     return { item, template, promptText, spokenText, answer, options, tipp };
 }
 

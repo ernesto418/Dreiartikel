@@ -38,3 +38,10 @@ export function playWord(word: string) {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
 }
+
+/** Immediately stop any speech in progress (e.g. when leaving the game). */
+export function stopSpeech() {
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
+}

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateItems, shuffle, type PracticeItem } from '../data';
 import { hasRule, getTipp } from '../rules';
 import { generateRounds } from '../sentences';
-import { playWord } from '../utils/speech';
+import { playWord, stopSpeech } from '../utils/speech';
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
 export type GameMode = 'article' | 'case-single';
@@ -18,8 +18,14 @@ export interface Round {
     options: string[];
     /** Explanation shown after answering. */
     tipp: string;
-    /** What the speech engine reads aloud. */
-    speakText: string;
+    /** Spoken when the round appears. Empty in case mode — speaking the full
+     *  sentence up front would reveal the article. */
+    speakOnShow: string;
+    /** Spoken after the learner answers (reinforcement). The full correct
+     *  sentence in case mode; empty in article mode. */
+    speakOnAnswer: string;
+    /** Replay button audio: what the round is "about". */
+    speakReplay: string;
 }
 
 const INITIAL_TIME_BANK = 3000; // 3 seconds starting budget
@@ -44,7 +50,9 @@ function buildQueue(filter: FilterType, mode: GameMode): Round[] {
             answer: r.answer,
             options: r.options,
             tipp: r.tipp,
-            speakText: r.spokenText,
+            speakOnShow: '',                 // no up-front audio — would leak the article
+            speakOnAnswer: r.spokenText,     // full correct sentence, after answering
+            speakReplay: r.item.word,        // re-hear just the noun (no article)
         }));
     }
 
@@ -57,11 +65,13 @@ function buildQueue(filter: FilterType, mode: GameMode): Round[] {
         answer: item.answer,
         options: item.options,
         tipp: getTipp(item.word, item.gender),
-        speakText: item.word,
+        speakOnShow: item.word,
+        speakOnAnswer: '',
+        speakReplay: item.word,
     }));
 }
 
-export function useGameState(filter: FilterType, mode: GameMode = 'article') {
+export function useGameState(filter: FilterType, mode: GameMode = 'article', active = true) {
     const [queue, setQueue] = useState<Round[]>([]);
     const [currentWord, setCurrentWord] = useState<Round | null>(null);
     const [score, setScore] = useState(0);
@@ -100,12 +110,19 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article') {
         setTimeBank(INITIAL_TIME_BANK);
     }, [filter, mode, clearAnswerTimer]);
 
-    // Play audio whenever a new round is displayed
+    // Play audio whenever a new round is displayed (only while the game is on
+    // screen). Empty speakOnShow (case mode) is a no-op so the article isn't
+    // revealed before the learner answers.
     useEffect(() => {
-        if (currentWord && !isAwaitingNext) {
-            playWord(currentWord.speakText);
+        if (active && currentWord && !isAwaitingNext && currentWord.speakOnShow) {
+            playWord(currentWord.speakOnShow);
         }
-    }, [currentWord, isAwaitingNext]);
+    }, [active, currentWord, isAwaitingNext]);
+
+    // Cut off any audio in progress the moment the game leaves the screen.
+    useEffect(() => {
+        if (!active) stopSpeech();
+    }, [active]);
 
     const handleAnswer = useCallback((selectedArticle: string, timedOut = false) => {
         if (!currentWord || isAwaitingNext) return;
@@ -139,6 +156,11 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article') {
             : currentWord.tipp;
         setTippText(tipp);
         setIsAwaitingNext(true);
+
+        // Reinforce with the full correct sentence (case mode); no-op in article mode.
+        if (currentWord.speakOnAnswer) {
+            playWord(currentWord.speakOnAnswer);
+        }
 
         setQueue(prevQueue => {
             const newQueue = [...prevQueue];
@@ -187,7 +209,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article') {
 
     // Start answer timer using time bank whenever a new word is presented
     useEffect(() => {
-        if (currentWord && !isAwaitingNext) {
+        if (active && currentWord && !isAwaitingNext) {
             clearAnswerTimer();
             wordPresentedAtRef.current = Date.now();
 
@@ -209,13 +231,18 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article') {
         }
 
         return () => clearAnswerTimer();
-    }, [currentWord, isAwaitingNext, clearAnswerTimer]);
+    }, [active, currentWord, isAwaitingNext, clearAnswerTimer]);
 
     const handleReplay = useCallback(() => {
         if (currentWord) {
-            playWord(currentWord.speakText);
+            // After answering in case mode, replay the full sentence; otherwise
+            // the noun on its own (which never leaks the article).
+            const text = isAwaitingNext && currentWord.speakOnAnswer
+                ? currentWord.speakOnAnswer
+                : currentWord.speakReplay;
+            playWord(text);
         }
-    }, [currentWord]);
+    }, [currentWord, isAwaitingNext]);
 
     useEffect(() => {
         return () => clearAnswerTimer();
