@@ -86,7 +86,6 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
     // single source of truth (previously this was split into App.tsx).
     const [selectedOption, setSelectedOption] = useState<string | null>(null);
     const [showTipp, setShowTipp] = useState(false);
-    const [swipeDir, setSwipeDir] = useState<string | null>(null);
 
     // Timing refs
     const answerTimerRef = useRef<number | null>(null);
@@ -125,7 +124,6 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         setTimeBank(INITIAL_TIME_BANK);
         setSelectedOption(null);
         setShowTipp(false);
-        setSwipeDir(null);
     }, [filter, mode, clearAnswerTimer, clearAutoAdvance]);
 
     // Play audio whenever a new round is displayed (only while the game is on
@@ -229,10 +227,9 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
 
     /** Submit an answer. On a correct answer, auto-advance after 2s; on a wrong
      *  answer, reveal the tipp and wait for the learner to press Next. */
-    const selectAnswer = useCallback((option: string, direction?: string) => {
+    const selectAnswer = useCallback((option: string) => {
         if (!currentWord || isAwaitingNext) return;
         setSelectedOption(option);
-        if (direction) setSwipeDir(direction);
 
         const wasCorrect = option === currentWord.answer;
         handleAnswer(option);
@@ -243,7 +240,6 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
                 handleNext(false);
                 setSelectedOption(null);
                 setShowTipp(false);
-                setSwipeDir(null);
             }, 2000);
         } else {
             setShowTipp(true);
@@ -262,7 +258,6 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         clearAutoAdvance();
         setSelectedOption(null);
         setShowTipp(false);
-        setSwipeDir(null);
         handleNext(grantBonus);
     }, [clearAutoAdvance, handleNext]);
 
@@ -324,7 +319,6 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         // Answer-flow state (this turn)
         selectedOption,
         showTipp,
-        swipeDir,
         // Turn actions — the API the UI calls
         selectAnswer,
         knowWhy,

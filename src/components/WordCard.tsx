@@ -1,4 +1,3 @@
-import type { SwipeableHandlers } from 'react-swipeable';
 import { glyphForOptionSlot } from '../hooks/useInput';
 import type { GameMode, Round } from '../hooks/useGameState';
 
@@ -8,10 +7,8 @@ interface WordCardProps {
     isAwaitingNext: boolean;
     selectedOption: string | null;
     showTipp: boolean;
-    swipeDir: string | null;
     feedback: 'correct' | 'incorrect' | null;
     tippText: string | null;
-    swipeHandlers: SwipeableHandlers;
     onSelectOption: (option: string) => void;
     onReplay: () => void;
     onKnowWhy: () => void;
@@ -24,31 +21,15 @@ export function WordCard({
     isAwaitingNext,
     selectedOption,
     showTipp,
-    swipeDir,
     feedback,
     tippText,
-    swipeHandlers,
     onSelectOption,
     onReplay,
     onKnowWhy,
     onNext,
 }: WordCardProps) {
-    const swipeDirClass = swipeDir ? `swipe-${swipeDir.toLowerCase()}` : '';
-
     return (
-        <div {...swipeHandlers} className={`word-card ${swipeDirClass}`}>
-            {/* Mobile swipe direction indicators — positional, match the buttons */}
-            <div className="swipe-hints">
-                {round.options.map((option, idx) => {
-                    const glyph = glyphForOptionSlot(idx, round.options.length);
-                    const pos = glyph === '←' ? 'left' : glyph === '→' ? 'right' : 'down';
-                    return (
-                        <span key={option} className={`swipe-hint ${pos}`}>
-                            {pos === 'right' ? `${option} →` : `${glyph} ${option}`}
-                        </span>
-                    );
-                })}
-            </div>
+        <div className="word-card">
 
             <div className="word-container">
                 <h1 className={`active-word ${mode === 'case-single' ? 'sentence' : ''}`}>

@@ -25,7 +25,6 @@ function App() {
     isAwaitingNext,
     selectedOption,
     showTipp,
-    swipeDir,
     selectAnswer,
     knowWhy,
     next: onNext,
@@ -53,8 +52,8 @@ function App() {
     prevStreakRef.current = streak;
   }, [streak, bestStreak]);
 
-  // Positional input (swipe + keyboard)
-  const { swipeHandlers } = useInput({
+  // Keyboard input (desktop); mobile taps the option buttons directly.
+  useInput({
     active: started,
     currentWord,
     isAwaitingNext,
@@ -95,7 +94,6 @@ function App() {
       isAwaitingNext={isAwaitingNext}
       selectedOption={selectedOption}
       showTipp={showTipp}
-      swipeDir={swipeDir}
       feedback={feedback}
       tippText={tippText}
       filter={filter}
@@ -103,7 +101,6 @@ function App() {
       filterOpen={filterOpen}
       onToggleFilter={() => setFilterOpen(o => !o)}
       onSelectFilter={(f) => { setFilter(f); setFilterOpen(false); }}
-      swipeHandlers={swipeHandlers}
       onSelectOption={(option) => selectAnswer(option)}
       onReplay={onReplay}
       onKnowWhy={knowWhy}

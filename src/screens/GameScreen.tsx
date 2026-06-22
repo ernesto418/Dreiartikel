@@ -1,4 +1,3 @@
-import type { SwipeableHandlers } from 'react-swipeable';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { Scoreboard } from '../components/Scoreboard';
 import { WordCard } from '../components/WordCard';
@@ -17,7 +16,6 @@ interface GameScreenProps {
     isAwaitingNext: boolean;
     selectedOption: string | null;
     showTipp: boolean;
-    swipeDir: string | null;
     feedback: 'correct' | 'incorrect' | null;
     tippText: string | null;
     // filter
@@ -27,7 +25,6 @@ interface GameScreenProps {
     onToggleFilter: () => void;
     onSelectFilter: (filter: FilterType) => void;
     // actions
-    swipeHandlers: SwipeableHandlers;
     onSelectOption: (option: string) => void;
     onReplay: () => void;
     onKnowWhy: () => void;
@@ -39,7 +36,7 @@ export function GameScreen(props: GameScreenProps) {
     const { round, isAwaitingNext } = props;
 
     return (
-        <main>
+        <main className="game-screen">
             <div className="game-header">
                 <button className="menu-btn" onClick={props.onMenu} aria-label="Back to menu">
                     ← Menu
@@ -77,10 +74,8 @@ export function GameScreen(props: GameScreenProps) {
                 isAwaitingNext={isAwaitingNext}
                 selectedOption={props.selectedOption}
                 showTipp={props.showTipp}
-                swipeDir={props.swipeDir}
                 feedback={props.feedback}
                 tippText={props.tippText}
-                swipeHandlers={props.swipeHandlers}
                 onSelectOption={props.onSelectOption}
                 onReplay={props.onReplay}
                 onKnowWhy={props.onKnowWhy}

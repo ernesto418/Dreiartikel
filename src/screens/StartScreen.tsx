@@ -36,19 +36,10 @@ export function StartScreen({ mode, onModeChange, onStart }: StartScreenProps) {
 
                     {mode === 'article' ? (
                         <>
-                            <h3>📱 On mobile</h3>
+                            <h3>📱 How to answer</h3>
                             <ul>
-                                <li><strong>Swipe ← left</strong> = der</li>
-                                <li><strong>Swipe ↓ down</strong> = die</li>
-                                <li><strong>Swipe → right</strong> = das</li>
-                            </ul>
-
-                            <h3 className="desktop-only">⌨️ On desktop</h3>
-                            <ul className="desktop-only">
-                                <li><strong>← Left Arrow</strong> = der</li>
-                                <li><strong>↓ Down Arrow</strong> = die</li>
-                                <li><strong>→ Right Arrow</strong> = das</li>
-                                <li><strong>Space</strong> = Next word</li>
+                                <li><strong>Tap</strong> the article you think is right.</li>
+                                <li className="desktop-only">Or use the <strong>← ↓ →</strong> arrow keys, <strong>Space</strong> for next.</li>
                             </ul>
                         </>
                     ) : (
@@ -56,8 +47,7 @@ export function StartScreen({ mode, onModeChange, onStart }: StartScreenProps) {
                             <h3>🎯 Cases</h3>
                             <ul>
                                 <li>The article changes with the case: <strong>den</strong> Hund (Akk), <strong>dem</strong> Hund (Dat)…</li>
-                                <li>Swipe or use arrow keys — options match the on-screen buttons (left → right).</li>
-                                <li>Buttons are <strong>shuffled</strong>, so read before you answer!</li>
+                                <li><strong>Tap</strong> the right article — buttons are <strong>shuffled</strong>, so read first!</li>
                             </ul>
                         </>
                     )}
