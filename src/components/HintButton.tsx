@@ -3,6 +3,7 @@ import { HINT_BUDGET, type Hint, type HintKind } from '../hints';
 const HINT_META: Record<HintKind, { icon: string; label: string }> = {
     rule: { icon: '💡', label: 'Rule' },
     gender: { icon: '🚻', label: 'Gender' },
+    plural: { icon: '🔢', label: 'Pattern' },
 };
 
 interface HintBarProps {

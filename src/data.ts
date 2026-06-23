@@ -1,4 +1,5 @@
 import { type Article, type Gender, articleForGender, genderForArticle } from './rules';
+import type { PluralPattern } from './plurals';
 
 export type Animacy = 'person' | 'thing';
 
@@ -22,7 +23,102 @@ export interface PracticeItem {
     /** Weak masculine (n-Deklination): takes -n/-en on the noun itself in
      *  accusative/dative singular, e.g. "der Junge" → "den Jungen". */
     isWeakMasculine?: boolean;
+    /** A place you can go to / be in — fills two-way-preposition frames
+     *  ("in den Park" / "im Park"). */
+    isPlace?: boolean;
+    /** The plural surface form, e.g. "Bücher". The SOURCE OF TRUTH for plural
+     *  mode (plurals aren't reliably rule-derivable). Set from the PLURALS map. */
+    plural?: string;
+    /** How the plural is formed — the rule. Drives decoy generation and the
+     *  Tipp in plural mode; `foreign` for irregular stems (Thema → Themen). */
+    pluralPattern?: PluralPattern;
 }
+
+// Curated plural data: the singular word → [plural form, pattern]. The plural
+// string is the source of truth (always correct); the pattern is the rule that
+// drives decoy generation + the Tipp. Plurals are NOT reliably rule-derivable
+// (rules are only tendencies), so each is hand-verified. Phase A is a curated
+// subset of common nouns spanning all eight patterns; grow it over time. Nouns
+// not listed here simply don't appear in plural mode yet. data.test.ts guards
+// that every key exists in the dataset and matches a sane shape.
+export const PLURALS: Record<string, [string, PluralPattern]> = {
+    // ── -e ───────────────────────────────────────────────────────────
+    'Brot': ['Brote', 'e'],
+    'Bein': ['Beine', 'e'],
+    'Tier': ['Tiere', 'e'],
+    'Spiel': ['Spiele', 'e'],
+    'Film': ['Filme', 'e'],
+    'Salat': ['Salate', 'e'],
+    'Schuh': ['Schuhe', 'e'],
+    'Hund': ['Hunde', 'e'],
+
+    // ── umlaut + -e ────────────────────────────────────────────────────
+    'Saft': ['Säfte', 'umlaut-e'],
+    'Fuß': ['Füße', 'umlaut-e'],
+    'Hut': ['Hüte', 'umlaut-e'],
+    'Hand': ['Hände', 'umlaut-e'],
+    'Wurst': ['Würste', 'umlaut-e'],
+    'Stadt': ['Städte', 'umlaut-e'],
+    'Anzug': ['Anzüge', 'umlaut-e'],
+
+    // ── -en / -n ───────────────────────────────────────────────────────
+    'Bluse': ['Blusen', 'en'],
+    'Tomate': ['Tomaten', 'en'],
+    'Banane': ['Bananen', 'en'],
+    'Katze': ['Katzen', 'en'],
+    'Tasse': ['Tassen', 'en'],
+    'Suppe': ['Suppen', 'en'],
+    'Karte': ['Karten', 'en'],
+    'Tür': ['Türen', 'en'],
+    'Maus': ['Mäuse', 'umlaut-e'],
+    'Freundin': ['Freundinnen', 'en'],
+    'Vegetarierin': ['Vegetarierinnen', 'en'],
+
+    // ── no change ──────────────────────────────────────────────────────
+    'Hamburger': ['Hamburger', 'none'],
+    'Löffel': ['Löffel', 'none'],
+    'Messer': ['Messer', 'none'],
+    'Becher': ['Becher', 'none'],
+    'Computer': ['Computer', 'none'],
+    'Fenster': ['Fenster', 'none'],
+    'Zimmer': ['Zimmer', 'none'],
+    'Kellner': ['Kellner', 'none'],
+    'Stiefel': ['Stiefel', 'none'],
+
+    // ── umlaut only ────────────────────────────────────────────────────
+    'Apfel': ['Äpfel', 'umlaut'],
+    'Vogel': ['Vögel', 'umlaut'],
+    'Mantel': ['Mäntel', 'umlaut'],
+    'Vater': ['Väter', 'umlaut'],
+    'Mutter': ['Mütter', 'umlaut'],
+    'Bruder': ['Brüder', 'umlaut'],
+    'Tochter': ['Töchter', 'umlaut'],
+
+    // ── -er ────────────────────────────────────────────────────────────
+    'Lied': ['Lieder', 'er'],
+    'Ei': ['Eier', 'er'],
+    'Kind': ['Kinder', 'er'],
+
+    // ── umlaut + -er ───────────────────────────────────────────────────
+    'Buch': ['Bücher', 'umlaut-er'],
+    'Mann': ['Männer', 'umlaut-er'],
+    'Glas': ['Gläser', 'umlaut-er'],
+
+    // ── -s ─────────────────────────────────────────────────────────────
+    'Kino': ['Kinos', 's'],
+    'Foto': ['Fotos', 's'],
+    'Disco': ['Discos', 's'],
+    'Hobby': ['Hobbys', 's'],
+    'Café': ['Cafés', 's'],
+    'Opa': ['Opas', 's'],
+    'Oma': ['Omas', 's'],
+    'Baby': ['Babys', 's'],
+    'Steak': ['Steaks', 's'],
+    'Cousin': ['Cousins', 's'],
+
+    // ── foreign / irregular stem ───────────────────────────────────────
+    'Pizza': ['Pizzen', 'foreign'],
+};
 
 // Animate nouns. Everything else defaults to 'thing'; a miss only narrows which
 // templates a noun can fill, never produces a wrong answer. data.test.ts guards
@@ -53,6 +149,15 @@ export const PLURAL_ONLY = new Set<string>([
 // that each exists and is masculine.
 export const WEAK_MASCULINE = new Set<string>([
     'Junge', 'Name', 'Vorname', 'Nachname', 'Franzose', 'Ire',
+]);
+
+// Places you can go to / be in — fill two-way-preposition frames ("in den
+// Park", "im Park"). data.test.ts guards that each exists in rawData.
+export const PLACE_WORDS = new Set<string>([
+    'Park', 'Kino', 'Stadion', 'Stadt', 'Schwimmbad', 'Theater', 'Hallenbad',
+    'Spielplatz', 'Badezimmer', 'Schlafzimmer', 'Wohnzimmer', 'Esszimmer',
+    'Gästezimmer', 'Kinderzimmer', 'Zimmer', 'Küche', 'Keller', 'Flur',
+    'Dachboden',
 ]);
 
 // Format: "article#Word#hint"
@@ -424,6 +529,7 @@ export function generateItems(): PracticeItem[] {
             throw new Error(`Invalid article "${article}" for word "${word}" (entry ${index})`);
         }
         const gender = genderForArticle(article);
+        const pluralEntry = PLURALS[word];
         return {
             id: String(index),
             word,
@@ -435,6 +541,9 @@ export function generateItems(): PracticeItem[] {
             animacy: PERSON_WORDS.has(word) ? 'person' : 'thing',
             pluralOnly: PLURAL_ONLY.has(word) || undefined,
             isWeakMasculine: WEAK_MASCULINE.has(word) || undefined,
+            isPlace: PLACE_WORDS.has(word) || undefined,
+            plural: pluralEntry?.[0],
+            pluralPattern: pluralEntry?.[1],
         };
     });
 }

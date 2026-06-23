@@ -6,6 +6,9 @@ import { getTipp } from './rules';
 import { genderHint, type Hint } from './hints';
 import { shuffle, type Animacy, type PracticeItem } from './data';
 
+/** What kind of noun can fill a template's slot. */
+export type SlotConstraint = Animacy | 'place' | 'any';
+
 export interface SentenceTemplate {
     id: string;
     /** Surface text with a single `___` slot where [article noun] goes. */
@@ -13,10 +16,14 @@ export interface SentenceTemplate {
     /** The case the slot noun must take. */
     case: Case;
     /** Semantic constraint on the noun that can fill the slot. */
-    requires: Animacy | 'any';
+    requires: SlotConstraint;
     /** The trigger that forces this case, phrased to slot into a tip:
      *  "<trigger> takes the Akkusativ". e.g. "the verb 'sehen'". */
     trigger: string;
+    /** For two-way (Wechsel) prepositions: whether the frame expresses motion
+     *  toward a goal ('wohin' → Akkusativ) or static location ('wo' → Dativ).
+     *  Drives the motion-vs-location reasoning in hints. */
+    motion?: 'wohin' | 'wo';
 }
 
 export const TEMPLATES: SentenceTemplate[] = [
@@ -34,6 +41,16 @@ export const TEMPLATES: SentenceTemplate[] = [
 
     // ── Nominativ (subject) ──
     { id: 'nom-gross', frame: '___ ist groß.', case: 'nom', requires: 'any', trigger: "the subject" },
+
+    // ── Two-way prepositions (Wechselpräpositionen) ──────────────────
+    // Same preposition; the verb decides the case. Motion toward a goal
+    // (Wohin?) → Akkusativ; static location (Wo?) → Dativ.
+    { id: 'wechsel-in-akk', frame: 'Ich gehe in ___.', case: 'akk', requires: 'place', trigger: "'in' with a motion verb (Wohin?)", motion: 'wohin' },
+    { id: 'wechsel-in-dat', frame: 'Ich bin in ___.', case: 'dat', requires: 'place', trigger: "'in' with a location verb (Wo?)", motion: 'wo' },
+    { id: 'wechsel-auf-akk', frame: 'Ich gehe auf ___.', case: 'akk', requires: 'place', trigger: "'auf' with a motion verb (Wohin?)", motion: 'wohin' },
+    { id: 'wechsel-auf-dat', frame: 'Ich bin auf ___.', case: 'dat', requires: 'place', trigger: "'auf' with a location verb (Wo?)", motion: 'wo' },
+    { id: 'wechsel-vor-akk', frame: 'Ich gehe vor ___.', case: 'akk', requires: 'place', trigger: "'vor' with a motion verb (Wohin?)", motion: 'wohin' },
+    { id: 'wechsel-vor-dat', frame: 'Ich stehe vor ___.', case: 'dat', requires: 'place', trigger: "'vor' with a location verb (Wo?)", motion: 'wo' },
 ];
 
 export interface CaseRound {
@@ -56,10 +73,18 @@ export interface CaseRound {
  *  "Kirche is feminine." For Nominativ, where case is a no-op, the rule hint
  *  nudges toward gender instead. */
 function buildHints(item: PracticeItem, template: SentenceTemplate): Hint[] {
-    const ruleHint: Hint = template.case === 'nom'
-        ? { kind: 'rule', text: 'The subject is in the Nominativ — think about the noun’s gender.' }
-        : { kind: 'rule', text: `${capitalize(template.trigger)} takes the ${CASE_LABELS[template.case]}.` };
-    return [ruleHint, genderHint(item.word, item.gender)];
+    let ruleText: string;
+    if (template.motion) {
+        // Two-way preposition: teach the decision, not just the case.
+        ruleText = template.motion === 'wohin'
+            ? 'Motion toward a goal — ask “Wohin?” → Akkusativ.'
+            : 'Static location — ask “Wo?” → Dativ.';
+    } else if (template.case === 'nom') {
+        ruleText = 'The subject is in the Nominativ — think about the noun’s gender.';
+    } else {
+        ruleText = `${capitalize(template.trigger)} takes the ${CASE_LABELS[template.case]}.`;
+    }
+    return [{ kind: 'rule', text: ruleText }, genderHint(item.word, item.gender)];
 }
 
 function capitalize(s: string): string {
@@ -82,7 +107,14 @@ function buildTipp(item: PracticeItem, template: SentenceTemplate, answer: strin
     const change = basePhrase === resultPhrase
         ? `"${basePhrase}" stays "${resultPhrase}" — ${caseName} doesn't change it.`
         : `"${basePhrase}" becomes "${resultPhrase}".`;
-    return `${template.trigger} takes the ${caseName}: ${change}`;
+
+    // Two-way prepositions: lead with the motion-vs-location reasoning.
+    const lead = template.motion
+        ? (template.motion === 'wohin'
+            ? `Motion (Wohin?) → ${caseName}`
+            : `Location (Wo?) → ${caseName}`)
+        : `${capitalize(template.trigger)} takes the ${caseName}`;
+    return `${lead}: ${change}`;
 }
 
 /** Build a single case round from an item + template. */
@@ -104,7 +136,9 @@ export function isEligible(item: PracticeItem): boolean {
 
 /** Does a noun satisfy a template's semantic constraint? */
 export function matches(item: PracticeItem, t: SentenceTemplate): boolean {
-    return t.requires === 'any' || t.requires === item.animacy;
+    if (t.requires === 'any') return true;
+    if (t.requires === 'place') return !!item.isPlace;
+    return t.requires === item.animacy;
 }
 
 function randomOf<T>(arr: T[]): T {

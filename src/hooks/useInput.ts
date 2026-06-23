@@ -2,8 +2,8 @@ import { useEffect, useCallback } from 'react';
 import type { Round } from './useGameState';
 
 // Keyboard arrows map to option *positions*, not fixed articles, so the same
-// handler works whether a round has 3 options (der/die/das, den/die/das) or
-// 2 (Dativ: dem/der). Order: Left → Down → Right.
+// handler works whether a round has 3 options (der/die/das, den/die/das,
+// plural answer + 2 decoys) or 2 (Dativ: dem/der). Order: Left → Down → Right.
 const KEY_ORDER = ['ArrowLeft', 'ArrowDown', 'ArrowRight'];
 
 /** The arrow glyph shown on the option at `idx` (desktop keyboard hint). With 3

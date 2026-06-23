@@ -20,6 +20,12 @@ export function ModeToggle({ mode, onChange }: ModeToggleProps) {
             >
                 Cases
             </button>
+            <button
+                className={`mode-btn ${mode === 'plural' ? 'active' : ''}`}
+                onClick={() => onChange('plural')}
+            >
+                Plural
+            </button>
         </div>
     );
 }

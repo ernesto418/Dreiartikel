@@ -21,12 +21,15 @@ function item(partial: Partial<PracticeItem> & { word: string; gender: PracticeI
         category: 'Test',
         animacy: partial.animacy ?? 'thing',
         pluralOnly: partial.pluralOnly,
+        isWeakMasculine: partial.isWeakMasculine,
+        isPlace: partial.isPlace,
     };
 }
 
 const HUND = item({ word: 'Hund', gender: 'm' });          // thing, masc
 const FRAU = item({ word: 'Frau', gender: 'f', animacy: 'person' });
 const KIND = item({ word: 'Kind', gender: 'n', animacy: 'person' });
+const PARK = item({ word: 'Park', gender: 'm', isPlace: true }); // place, masc
 
 const byId = (id: string): SentenceTemplate => {
     const t = TEMPLATES.find(t => t.id === id);
@@ -111,6 +114,35 @@ describe('matches / semantic constraints', () => {
     it('thing-only templates reject people', () => {
         expect(matches(FRAU, byId('akk-essen'))).toBe(false);
         expect(matches(HUND, byId('akk-essen'))).toBe(true);
+    });
+
+    it('place-only (Wechsel) templates require a place noun', () => {
+        expect(matches(HUND, byId('wechsel-in-akk'))).toBe(false); // Hund is not a place
+        expect(matches(PARK, byId('wechsel-in-akk'))).toBe(true);
+    });
+});
+
+describe('two-way prepositions (Wechsel)', () => {
+    it('motion frames take Akkusativ, location frames take Dativ', () => {
+        // Park is masculine: Akk → den, Dativ → dem.
+        expect(buildRound(PARK, byId('wechsel-in-akk')).answer).toBe('den'); // Ich gehe in den Park
+        expect(buildRound(PARK, byId('wechsel-in-dat')).answer).toBe('dem'); // Ich bin in dem Park
+    });
+
+    it('renders the contrast in the prompt', () => {
+        expect(buildRound(PARK, byId('wechsel-in-akk')).promptText).toBe('Ich gehe in ___ Park.');
+        expect(buildRound(PARK, byId('wechsel-in-dat')).promptText).toBe('Ich bin in ___ Park.');
+    });
+
+    it('hint teaches Wohin/Wo, not just the case, and never leaks the answer', () => {
+        const akk = buildRound(PARK, byId('wechsel-in-akk'));
+        const dat = buildRound(PARK, byId('wechsel-in-dat'));
+        const ruleAkk = akk.hints.find(h => h.kind === 'rule')!.text;
+        const ruleDat = dat.hints.find(h => h.kind === 'rule')!.text;
+        expect(ruleAkk).toMatch(/Wohin/);
+        expect(ruleDat).toMatch(/Wo\?/);
+        expect(ruleAkk).not.toMatch(/\b(den|dem)\b/);
+        expect(ruleDat).not.toMatch(/\b(den|dem)\b/);
     });
 });
 

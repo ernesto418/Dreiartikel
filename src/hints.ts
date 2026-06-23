@@ -6,7 +6,7 @@
 
 import type { Gender } from './rules';
 
-export type HintKind = 'rule' | 'gender';
+export type HintKind = 'rule' | 'gender' | 'plural';
 
 export interface Hint {
     kind: HintKind;
@@ -17,10 +17,11 @@ export interface Hint {
 export const HINT_BUDGET: Record<HintKind, number> = {
     rule: 3,
     gender: 3,
+    plural: 3,
 };
 
 /** Order hints appear in the UI. */
-export const HINT_KINDS: HintKind[] = ['rule', 'gender'];
+export const HINT_KINDS: HintKind[] = ['rule', 'gender', 'plural'];
 
 const GENDER_WORD: Record<Gender, string> = {
     m: 'masculine',

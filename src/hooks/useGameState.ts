@@ -2,13 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateItems, shuffle, type PracticeItem } from '../data';
 import { hasRule, getTipp, getHint } from '../rules';
 import { generateRounds } from '../sentences';
+import { generatePluralRounds } from '../plurals';
 import { genderHint, HINT_BUDGET, HINT_KINDS, type Hint, type HintKind } from '../hints';
 import { playWord, stopSpeech } from '../utils/speech';
 
 const HINT_FREEZE_MS = 3000; // how long the timer freezes while a hint shows
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
-export type GameMode = 'article' | 'case-single';
+export type GameMode = 'article' | 'case-single' | 'plural';
 
 /** The presentable unit the game loop consumes, identical across modes. */
 export interface Round {
@@ -46,6 +47,20 @@ function buildQueue(filter: FilterType, mode: GameMode): Round[] {
         items = items.filter(i => !hasRule(i.word, i.gender));
     } else if (filter !== 'all') {
         items = items.filter(i => i.category === filter);
+    }
+
+    if (mode === 'plural') {
+        return generatePluralRounds(items).map(r => ({
+            id: r.item.id,
+            displayText: r.promptText,        // "das Buch"
+            answer: r.answer,                 // "Bücher"
+            options: r.options,
+            tipp: r.tipp,
+            speakOnShow: r.promptText,        // "das Buch" — says nothing about the plural
+            speakOnAnswer: r.spokenText,      // "das Buch — die Bücher"
+            speakReplay: r.promptText,        // re-hear the singular
+            hints: r.hints,
+        }));
     }
 
     if (mode === 'case-single') {

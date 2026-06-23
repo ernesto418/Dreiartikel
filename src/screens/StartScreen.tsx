@@ -15,7 +15,9 @@ export function StartScreen({ mode, onModeChange, onStart }: StartScreenProps) {
                 <p className="start-subtitle">
                     {mode === 'article'
                         ? 'Master German articles — der, die, das'
-                        : 'Practice German cases — pick the right article in a sentence'}
+                        : mode === 'case-single'
+                            ? 'Practice German cases — pick the right article in a sentence'
+                            : 'Practice German plurals — pick the right plural form'}
                 </p>
 
                 <ModeToggle mode={mode} onChange={onModeChange} />
@@ -25,8 +27,10 @@ export function StartScreen({ mode, onModeChange, onStart }: StartScreenProps) {
                     <ul>
                         {mode === 'article' ? (
                             <li>A German word appears — pick the correct article.</li>
-                        ) : (
+                        ) : mode === 'case-single' ? (
                             <li>A sentence appears with a blank — pick the article the noun needs in that case.</li>
+                        ) : (
+                            <li>A noun appears in the singular — pick its correct plural form.</li>
                         )}
                         <li>You have <strong>3 seconds</strong> to answer or it counts as wrong.</li>
                         <li>Answer fast and press <strong>Next</strong> early to recover time!</li>
@@ -42,12 +46,21 @@ export function StartScreen({ mode, onModeChange, onStart }: StartScreenProps) {
                                 <li className="desktop-only">Or use the <strong>← ↓ →</strong> arrow keys, <strong>Space</strong> for next.</li>
                             </ul>
                         </>
-                    ) : (
+                    ) : mode === 'case-single' ? (
                         <>
                             <h3>🎯 Cases</h3>
                             <ul>
                                 <li>The article changes with the case: <strong>den</strong> Hund (Akk), <strong>dem</strong> Hund (Dat)…</li>
                                 <li><strong>Tap</strong> the right article — buttons are <strong>shuffled</strong>, so read first!</li>
+                            </ul>
+                        </>
+                    ) : (
+                        <>
+                            <h3>🔢 Plural</h3>
+                            <ul>
+                                <li>German has 8 plural patterns: <strong>das Buch → die Bücher</strong>, <strong>der Tag → die Tage</strong>…</li>
+                                <li><strong>Tap</strong> the right plural — the look-alikes follow the <em>other</em> patterns.</li>
+                                <li>Stuck? The <strong>hint</strong> tells you which pattern applies.</li>
                             </ul>
                         </>
                     )}

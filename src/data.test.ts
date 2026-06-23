@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateItems, getCategories, PERSON_WORDS, PLURAL_ONLY, WEAK_MASCULINE } from './data';
+import { generateItems, getCategories, PERSON_WORDS, PLURAL_ONLY, WEAK_MASCULINE, PLACE_WORDS, PLURALS } from './data';
+import { PLURAL_PATTERNS, applyPattern } from './plurals';
 import type { Gender } from './rules';
 
 // The dataset is hand-entered, so these guard against the most likely human
@@ -79,6 +80,64 @@ describe('curated lexical sets', () => {
             expect(item, `unknown weak-masculine word: ${w}`).toBeDefined();
             expect(item?.gender, `${w} should be masculine`).toBe('m');
             expect(item?.isWeakMasculine, `${w} should carry the flag`).toBe(true);
+        }
+    });
+
+    it('every PLACE_WORDS entry exists and is flagged isPlace', () => {
+        const byWord = new Map(items.map(i => [i.word, i]));
+        for (const w of PLACE_WORDS) {
+            const item = byWord.get(w);
+            expect(item, `unknown place word: ${w}`).toBeDefined();
+            expect(item?.isPlace, `${w} should carry isPlace`).toBe(true);
+        }
+    });
+
+    it('has at least one place per gender so Wechsel rounds are answerable', () => {
+        const byGender: Record<Gender, number> = { m: 0, f: 0, n: 0 };
+        for (const item of items) {
+            if (item.isPlace) byGender[item.gender]++;
+        }
+        for (const g of ['m', 'f', 'n'] as Gender[]) {
+            expect(byGender[g], `no place noun for gender ${g}`).toBeGreaterThan(0);
+        }
+    });
+
+    it('every PLURALS key exists in the dataset', () => {
+        const missing = Object.keys(PLURALS).filter(w => !words.has(w));
+        expect(missing, `unknown plural words: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('every PLURALS entry carries a known pattern and a non-empty plural', () => {
+        const valid = new Set([...PLURAL_PATTERNS, 'foreign']);
+        for (const [word, [plural, pattern]] of Object.entries(PLURALS)) {
+            expect(plural, `${word} plural must be non-empty`).toBeTruthy();
+            expect(valid.has(pattern), `${word} has unknown pattern "${pattern}"`).toBe(true);
+        }
+    });
+
+    it('regular (non-foreign) plurals match what the pattern derives — catches typos', () => {
+        // foreign is exempt (its stem changes); every other pattern must reproduce
+        // the stored plural exactly, so a mismatch flags either a wrong stored form
+        // or a wrong pattern label.
+        for (const [word, [plural, pattern]] of Object.entries(PLURALS)) {
+            if (pattern === 'foreign') continue;
+            expect(applyPattern(word, pattern), `${word} (${pattern})`).toBe(plural);
+        }
+    });
+
+    it('generateItems wires plural data onto the matching items', () => {
+        const byWord = new Map(items.map(i => [i.word, i]));
+        for (const [word, [plural, pattern]] of Object.entries(PLURALS)) {
+            const it = byWord.get(word);
+            expect(it?.plural, `${word} should carry its plural`).toBe(plural);
+            expect(it?.pluralPattern, `${word} should carry its pattern`).toBe(pattern);
+        }
+    });
+
+    it('covers every regular plural pattern at least once', () => {
+        const used = new Set(Object.values(PLURALS).map(([, p]) => p));
+        for (const p of PLURAL_PATTERNS) {
+            expect(used.has(p), `no curated noun uses pattern "${p}"`).toBe(true);
         }
     });
 

@@ -364,11 +364,15 @@ h1.active-word.sentence {
 
 .option-btn {
   flex: 1;
+  min-width: 0;
+  /* Plural words ("Vegetarierinnen") are longer than articles — let them wrap
+     inside the button so the three columns keep their ← ↓ → positions. */
+  word-break: break-word;
   background-color: var(--color-surface);
   color: var(--color-text);
   border: 2px solid transparent;
   border-radius: var(--radius-lg);
-  padding: 1rem 0;
+  padding: 1rem 0.4rem;
   font-size: 1.5rem;
   font-weight: 700;
   cursor: pointer;
