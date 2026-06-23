@@ -1,7 +1,7 @@
 // Single-case sentence practice: slot a noun into a sentence frame and ask the
 // learner for the article it must take in the case the frame governs.
 
-import { articleFor, optionsForCase, CASE_LABELS, type Case } from './declension';
+import { articleFor, optionsForCase, declineNoun, CASE_LABELS, type Case } from './declension';
 import { getTipp } from './rules';
 import { genderHint, type Hint } from './hints';
 import { shuffle, type Animacy, type PracticeItem } from './data';
@@ -74,11 +74,14 @@ function buildTipp(item: PracticeItem, template: SentenceTemplate, answer: strin
         return getTipp(item.word, item.gender);
     }
 
-    const base = articleFor(item.gender, 'nom', 'sg'); // dictionary article
+    const weak = !!item.isWeakMasculine;
+    const baseArticle = articleFor(item.gender, 'nom', 'sg');
+    const basePhrase = `${baseArticle} ${item.word}`;                          // der Junge
+    const resultPhrase = `${answer} ${declineNoun(item.word, weak, template.case)}`; // den Jungen
     const caseName = CASE_LABELS[template.case];
-    const change = base === answer
-        ? `"${base} ${item.word}" stays "${answer} ${item.word}" — ${caseName} doesn't change this article.`
-        : `"${base} ${item.word}" becomes "${answer} ${item.word}".`;
+    const change = basePhrase === resultPhrase
+        ? `"${basePhrase}" stays "${resultPhrase}" — ${caseName} doesn't change it.`
+        : `"${basePhrase}" becomes "${resultPhrase}".`;
     return `${template.trigger} takes the ${caseName}: ${change}`;
 }
 
@@ -86,8 +89,9 @@ function buildTipp(item: PracticeItem, template: SentenceTemplate, answer: strin
 export function buildRound(item: PracticeItem, template: SentenceTemplate): CaseRound {
     const answer = articleFor(item.gender, template.case, 'sg');
     const options = shuffle(optionsForCase(template.case, 'sg'));
-    const promptText = template.frame.replace('___', `___ ${item.word}`);
-    const spokenText = template.frame.replace('___', `${answer} ${item.word}`);
+    const noun = declineNoun(item.word, !!item.isWeakMasculine, template.case, 'sg');
+    const promptText = template.frame.replace('___', `___ ${noun}`);
+    const spokenText = template.frame.replace('___', `${answer} ${noun}`);
     const tipp = buildTipp(item, template, answer);
     const hints = buildHints(item, template);
     return { item, template, promptText, spokenText, answer, options, tipp, hints };

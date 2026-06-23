@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateItems, getCategories, PERSON_WORDS, PLURAL_ONLY } from './data';
+import { generateItems, getCategories, PERSON_WORDS, PLURAL_ONLY, WEAK_MASCULINE } from './data';
 import type { Gender } from './rules';
 
 // The dataset is hand-entered, so these guard against the most likely human
@@ -70,6 +70,16 @@ describe('curated lexical sets', () => {
     it('every PLURAL_ONLY entry exists in the dataset', () => {
         const missing = [...PLURAL_ONLY].filter(w => !words.has(w));
         expect(missing, `unknown plural-only words: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('every WEAK_MASCULINE entry exists and is masculine', () => {
+        const byWord = new Map(items.map(i => [i.word, i]));
+        for (const w of WEAK_MASCULINE) {
+            const item = byWord.get(w);
+            expect(item, `unknown weak-masculine word: ${w}`).toBeDefined();
+            expect(item?.gender, `${w} should be masculine`).toBe('m');
+            expect(item?.isWeakMasculine, `${w} should carry the flag`).toBe(true);
+        }
     });
 
     it('has at least one person per gender so person-templates are satisfiable', () => {

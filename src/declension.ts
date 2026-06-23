@@ -38,3 +38,17 @@ export function optionsForCase(caseName: Case, number: GrammaticalNumber = 'sg')
     const forms = number === 'pl' ? [row.pl] : [row.m, row.f, row.n];
     return Array.from(new Set(forms));
 }
+
+/** The noun's surface form for a case. Weak masculine nouns (n-Deklination)
+ *  take -n/-en outside the nominative singular: "der Junge" → "den Jungen",
+ *  "mit dem Franzosen". -n if the word already ends in -e, else -en. Today only
+ *  singular weak masculines are modelled; other nouns are returned unchanged. */
+export function declineNoun(
+    word: string,
+    isWeakMasculine: boolean,
+    caseName: Case,
+    number: GrammaticalNumber = 'sg',
+): string {
+    if (!isWeakMasculine || number !== 'sg' || caseName === 'nom') return word;
+    return word.endsWith('e') ? `${word}n` : `${word}en`;
+}

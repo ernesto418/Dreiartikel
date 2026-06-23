@@ -19,6 +19,9 @@ export interface PracticeItem {
     /** Plural-only noun (e.g. Eltern). Excluded from sentence mode in phase 1,
      *  which only handles singular declension. */
     pluralOnly?: boolean;
+    /** Weak masculine (n-Deklination): takes -n/-en on the noun itself in
+     *  accusative/dative singular, e.g. "der Junge" → "den Jungen". */
+    isWeakMasculine?: boolean;
 }
 
 // Animate nouns. Everything else defaults to 'thing'; a miss only narrows which
@@ -42,6 +45,14 @@ export const PERSON_WORDS = new Set<string>([
 export const PLURAL_ONLY = new Set<string>([
     'Eltern', 'Großeltern', 'Pommes', 'Niederlande', 'Handschuhe', 'Spaghetti',
     'Meeresfrüchte', 'Nachrichten', 'Lebensmittel',
+]);
+
+// Weak masculine nouns (n-Deklination): add -n/-en outside the nominative
+// singular. In this dataset they all end in -e, so they take -n (Junge →
+// Jungen, Franzose → Franzosen, Name → Namen, Ire → Iren). data.test.ts guards
+// that each exists and is masculine.
+export const WEAK_MASCULINE = new Set<string>([
+    'Junge', 'Name', 'Vorname', 'Nachname', 'Franzose', 'Ire',
 ]);
 
 // Format: "article#Word#hint"
@@ -423,6 +434,7 @@ export function generateItems(): PracticeItem[] {
             category,
             animacy: PERSON_WORDS.has(word) ? 'person' : 'thing',
             pluralOnly: PLURAL_ONLY.has(word) || undefined,
+            isWeakMasculine: WEAK_MASCULINE.has(word) || undefined,
         };
     });
 }

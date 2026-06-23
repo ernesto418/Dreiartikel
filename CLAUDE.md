@@ -65,7 +65,7 @@ layer**. Keep them separate.
 
 ```bash
 npm run dev      # dev server
-npm test         # vitest run (currently 33 tests)
+npm test         # vitest run
 npm run check    # tsc -b --noEmit && eslint .
 npm run build    # tsc -b && vite build
 ```
@@ -75,9 +75,10 @@ declaring done.
 
 ## Known scope limits (deliberate — don't "fix" silently)
 
-- **No n-Deklination (weak masculine).** Phase 1 ignores it, so *der Junge*
-  declines to *"den Junge"* not the correct *"den Jungen"*. Adding it requires
-  an `isWeakMasculine` flag per noun. Don't assert `-n` noun endings in tests.
+- **n-Deklination (weak masculine) IS handled.** Nouns in the `WEAK_MASCULINE`
+  set (Junge, Name, Franzose, …) decline correctly: *der Junge → den Jungen*.
+  `declineNoun` in `declension.ts` adds -n/-en outside the nominative singular.
+  When adding a weak-masculine noun, add it to that set.
 - **Singular + definite article only.** No plurals, no indefinite (ein-)
   articles. Genitiv is in the table but not used in templates yet.
 - **Plural-only nouns** (Eltern, Pommes, …) are excluded from case mode.

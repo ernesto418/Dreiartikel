@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { articleFor, optionsForCase, type Case } from './declension';
+import { articleFor, optionsForCase, declineNoun, type Case } from './declension';
 import { articleForGender, type Gender } from './rules';
 
 const GENDERS: Gender[] = ['m', 'f', 'n'];
@@ -52,5 +52,25 @@ describe('optionsForCase', () => {
                 expect(opts, `${c}/${g}`).toContain(articleFor(g, c, 'sg'));
             }
         }
+    });
+});
+
+describe('declineNoun (n-Deklination)', () => {
+    it('leaves non-weak nouns unchanged in every case', () => {
+        for (const c of ['nom', 'akk', 'dat', 'gen'] as Case[]) {
+            expect(declineNoun('Hund', false, c)).toBe('Hund');
+        }
+    });
+
+    it('adds -n to a weak noun ending in -e outside the nominative', () => {
+        expect(declineNoun('Junge', true, 'nom')).toBe('Junge');   // nom unchanged
+        expect(declineNoun('Junge', true, 'akk')).toBe('Jungen');
+        expect(declineNoun('Junge', true, 'dat')).toBe('Jungen');
+        expect(declineNoun('Franzose', true, 'dat')).toBe('Franzosen');
+        expect(declineNoun('Name', true, 'akk')).toBe('Namen');
+    });
+
+    it('adds -en to a weak noun not ending in -e', () => {
+        expect(declineNoun('Student', true, 'akk')).toBe('Studenten');
     });
 });
