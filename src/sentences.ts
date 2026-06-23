@@ -3,6 +3,7 @@
 
 import { articleFor, optionsForCase, CASE_LABELS, type Case } from './declension';
 import { getTipp } from './rules';
+import { genderHint, type Hint } from './hints';
 import { shuffle, type Animacy, type PracticeItem } from './data';
 
 export interface SentenceTemplate {
@@ -50,22 +51,19 @@ export interface CaseRound {
     hints: Hint[];
 }
 
-/** A piece of help shown without revealing the answer. `kind` lets the UI and
- *  future hint types branch; today only 'rule' exists. */
-export interface Hint {
-    kind: 'rule';
-    text: string;
+/** Hints for a case round: the rule trigger (names the case, not the article)
+ *  plus the noun's gender. e.g. "The preposition 'zu' takes the Dativ." and
+ *  "Kirche is feminine." For Nominativ, where case is a no-op, the rule hint
+ *  nudges toward gender instead. */
+function buildHints(item: PracticeItem, template: SentenceTemplate): Hint[] {
+    const ruleHint: Hint = template.case === 'nom'
+        ? { kind: 'rule', text: 'The subject is in the Nominativ — think about the noun’s gender.' }
+        : { kind: 'rule', text: `${capitalize(template.trigger)} takes the ${CASE_LABELS[template.case]}.` };
+    return [ruleHint, genderHint(item.word, item.gender)];
 }
 
-/** Hints for a case round: the rule trigger that names the case (not the
- *  article). e.g. "The preposition 'zu' takes the Dativ." For Nominativ, where
- *  case is a no-op, nudge toward the noun's gender instead. */
-function buildHints(template: SentenceTemplate): Hint[] {
-    if (template.case === 'nom') {
-        return [{ kind: 'rule', text: 'The subject is in the Nominativ — think about the noun’s gender.' }];
-    }
-    const triggerCap = template.trigger.charAt(0).toUpperCase() + template.trigger.slice(1);
-    return [{ kind: 'rule', text: `${triggerCap} takes the ${CASE_LABELS[template.case]}.` }];
+function capitalize(s: string): string {
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** Educational explanation for a round. Nominativ leans on the gender rule
@@ -91,7 +89,7 @@ export function buildRound(item: PracticeItem, template: SentenceTemplate): Case
     const promptText = template.frame.replace('___', `___ ${item.word}`);
     const spokenText = template.frame.replace('___', `${answer} ${item.word}`);
     const tipp = buildTipp(item, template, answer);
-    const hints = buildHints(template);
+    const hints = buildHints(item, template);
     return { item, template, promptText, spokenText, answer, options, tipp, hints };
 }
 

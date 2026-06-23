@@ -1,31 +1,45 @@
-import type { Hint } from '../sentences';
+import { HINT_BUDGET, type Hint, type HintKind } from '../hints';
 
-interface HintButtonProps {
-    remaining: number;
-    /** Whether the current round has any hints to give. */
-    available: boolean;
+const HINT_META: Record<HintKind, { icon: string; label: string }> = {
+    rule: { icon: '💡', label: 'Rule' },
+    gender: { icon: '🚻', label: 'Gender' },
+};
+
+interface HintBarProps {
+    /** Hint kinds the current round offers, in display order. */
+    kinds: HintKind[];
+    /** Remaining uses per kind. */
+    remaining: Record<HintKind, number>;
     /** True while a hint is showing and the timer is frozen. */
     frozen: boolean;
     /** The currently revealed hint, if any. */
     hint: Hint | null;
     disabled: boolean;
-    onUse: () => void;
+    onUse: (kind: HintKind) => void;
 }
 
-export function HintButton({ remaining, available, frozen, hint, disabled, onUse }: HintButtonProps) {
-    const out = remaining <= 0;
-
+export function HintBar({ kinds, remaining, frozen, hint, disabled, onUse }: HintBarProps) {
     return (
         <div className="hint-zone">
-            <button
-                className={`hint-btn ${frozen ? 'frozen' : ''}`}
-                onClick={onUse}
-                disabled={disabled || out || !available || frozen}
-                aria-label="Show a hint (freezes the timer)"
-            >
-                💡 Hint
-                <span className="hint-count">{remaining}/3</span>
-            </button>
+            <div className="hint-buttons">
+                {kinds.map(kind => {
+                    const left = remaining[kind];
+                    const meta = HINT_META[kind];
+                    const showingThis = frozen && hint?.kind === kind;
+                    return (
+                        <button
+                            key={kind}
+                            className={`hint-btn ${showingThis ? 'frozen' : ''}`}
+                            onClick={() => onUse(kind)}
+                            disabled={disabled || frozen || left <= 0}
+                            aria-label={`${meta.label} hint (freezes the timer), ${left} left`}
+                        >
+                            {meta.icon} {meta.label}
+                            <span className="hint-count">{left}/{HINT_BUDGET[kind]}</span>
+                        </button>
+                    );
+                })}
+            </div>
 
             {frozen && hint && (
                 <div className="hint-callout" role="status">

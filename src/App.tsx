@@ -28,7 +28,7 @@ function App() {
     hintsRemaining,
     revealedHint,
     isFrozen,
-    hasHints,
+    availableHintKinds,
     selectAnswer,
     knowWhy,
     next: onNext,
@@ -102,7 +102,7 @@ function App() {
       feedback={feedback}
       tippText={tippText}
       hintsRemaining={hintsRemaining}
-      hasHints={hasHints}
+      availableHintKinds={availableHintKinds}
       isFrozen={isFrozen}
       revealedHint={revealedHint}
       onUseHint={useHint}

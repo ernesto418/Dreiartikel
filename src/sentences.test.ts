@@ -88,8 +88,17 @@ describe('hints', () => {
     });
 
     it('names the governing case for non-Nominativ templates', () => {
-        expect(buildRound(HUND, byId('dat-mit')).hints[0].text).toMatch(/Dativ/);
-        expect(buildRound(HUND, byId('akk-sehen')).hints[0].text).toMatch(/Akkusativ/);
+        const ruleOf = (id: string, item = HUND) =>
+            buildRound(item, byId(id)).hints.find(h => h.kind === 'rule')!.text;
+        expect(ruleOf('dat-mit')).toMatch(/Dativ/);
+        expect(ruleOf('akk-sehen')).toMatch(/Akkusativ/);
+    });
+
+    it('includes a gender hint that names the gender but not the article', () => {
+        const g = buildRound(FRAU, byId('akk-sehen')).hints.find(h => h.kind === 'gender')!;
+        expect(g.text).toMatch(/feminine/);
+        expect(g.text).toContain('Frau');
+        expect(g.text).not.toMatch(/\b(der|die|das)\b/);
     });
 });
 

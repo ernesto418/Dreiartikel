@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateItems, shuffle, type PracticeItem } from '../data';
 import { hasRule, getTipp, getHint } from '../rules';
-import { generateRounds, type Hint } from '../sentences';
+import { generateRounds } from '../sentences';
+import { genderHint, HINT_BUDGET, HINT_KINDS, type Hint, type HintKind } from '../hints';
 import { playWord, stopSpeech } from '../utils/speech';
 
-const MAX_HINTS = 3;        // hints allowed per session
 const HINT_FREEZE_MS = 3000; // how long the timer freezes while a hint shows
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
@@ -74,7 +74,10 @@ function buildQueue(filter: FilterType, mode: GameMode): Round[] {
         speakOnShow: item.word,
         speakOnAnswer: '',
         speakReplay: item.word,
-        hints: [{ kind: 'rule', text: getHint(item.word, item.gender) }],
+        hints: [
+            { kind: 'rule', text: getHint(item.word, item.gender) },
+            genderHint(item.word, item.gender),
+        ],
     }));
 }
 
@@ -94,8 +97,8 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
     const [selectedOption, setSelectedOption] = useState<string | null>(null);
     const [showTipp, setShowTipp] = useState(false);
 
-    // Hint system
-    const [hintsRemaining, setHintsRemaining] = useState(MAX_HINTS);
+    // Hint system — a separate budget per hint kind.
+    const [hintsRemaining, setHintsRemaining] = useState<Record<HintKind, number>>({ ...HINT_BUDGET });
     const [revealedHint, setRevealedHint] = useState<Hint | null>(null);
     const [isFrozen, setIsFrozen] = useState(false);
 
@@ -148,7 +151,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         setTimeBank(INITIAL_TIME_BANK);
         setSelectedOption(null);
         setShowTipp(false);
-        setHintsRemaining(MAX_HINTS);   // refill hints on a new run
+        setHintsRemaining({ ...HINT_BUDGET });   // refill hints on a new run
         setRevealedHint(null);
     }, [filter, mode, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
 
@@ -294,21 +297,21 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         handleNext(grantBonus);
     }, [clearAutoAdvance, clearFreeze, handleNext]);
 
-    /** Reveal the next available hint for the current round, freezing the timer
-     *  for HINT_FREEZE_MS. Costs one of the limited hints. */
-    const useHint = useCallback(() => {
+    /** Reveal a hint of the given kind for the current round, freezing the timer
+     *  for HINT_FREEZE_MS. Costs one use from that kind's budget. */
+    const useHint = useCallback((kind: HintKind) => {
         if (!currentWord || isAwaitingNext || isFrozen) return;
-        if (hintsRemaining <= 0 || currentWord.hints.length === 0) return;
+        if (hintsRemaining[kind] <= 0) return;
 
-        // Show the first not-yet-revealed hint (today there's one per round).
-        const hint = currentWord.hints[0];
+        const hint = currentWord.hints.find(h => h.kind === kind);
+        if (!hint) return;
 
         // Freeze the answer timer, stashing how much time was left to resume with.
         clearAnswerTimer();
         frozenRemainingRef.current = Math.max(0, answerDeadlineRef.current - Date.now());
 
         setRevealedHint(hint);
-        setHintsRemaining(n => n - 1);
+        setHintsRemaining(prev => ({ ...prev, [kind]: prev[kind] - 1 }));
         setIsFrozen(true);
 
         freezeTimerRef.current = window.setTimeout(() => {
@@ -383,7 +386,9 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         hintsRemaining,
         revealedHint,
         isFrozen,
-        hasHints: !!currentWord && currentWord.hints.length > 0,
+        availableHintKinds: currentWord
+            ? HINT_KINDS.filter(k => currentWord.hints.some(h => h.kind === k))
+            : [],
         // Turn actions — the API the UI calls
         selectAnswer,
         knowWhy,

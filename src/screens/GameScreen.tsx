@@ -1,9 +1,9 @@
 import { FilterDropdown } from '../components/FilterDropdown';
 import { Scoreboard } from '../components/Scoreboard';
 import { WordCard } from '../components/WordCard';
-import { HintButton } from '../components/HintButton';
+import { HintBar } from '../components/HintButton';
 import type { FilterType, GameMode, Round } from '../hooks/useGameState';
-import type { Hint } from '../sentences';
+import type { Hint, HintKind } from '../hints';
 
 interface GameScreenProps {
     round: Round;
@@ -21,11 +21,11 @@ interface GameScreenProps {
     feedback: 'correct' | 'incorrect' | null;
     tippText: string | null;
     // hints
-    hintsRemaining: number;
-    hasHints: boolean;
+    hintsRemaining: Record<HintKind, number>;
+    availableHintKinds: HintKind[];
     isFrozen: boolean;
     revealedHint: Hint | null;
-    onUseHint: () => void;
+    onUseHint: (kind: HintKind) => void;
     // filter
     filter: FilterType;
     categories: string[];
@@ -93,10 +93,10 @@ export function GameScreen(props: GameScreenProps) {
                 onNext={props.onNext}
             />
 
-            {!isAwaitingNext && (
-                <HintButton
+            {!isAwaitingNext && props.availableHintKinds.length > 0 && (
+                <HintBar
+                    kinds={props.availableHintKinds}
                     remaining={props.hintsRemaining}
-                    available={props.hasHints}
                     frozen={props.isFrozen}
                     hint={props.revealedHint}
                     disabled={isAwaitingNext}
