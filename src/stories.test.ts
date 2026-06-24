@@ -203,3 +203,40 @@ describe('story rounds never leak the answer', () => {
         }
     });
 });
+
+describe('story mode — continuous audio', () => {
+    const rounds = generateStoryRounds(generateItems());
+
+    it('the on-answer read starts with the just-filled blank word', () => {
+        // spokenText is what plays after answering: it begins with this blank's
+        // answer (the slot getting filled), then flows onward.
+        for (let i = 0; i < rounds.length; i++) {
+            const r = rounds[i];
+            expect(
+                r.spokenText.startsWith(r.answer),
+                `round ${i} continuation should start with "${r.answer}": ${r.spokenText}`,
+            ).toBe(true);
+        }
+    });
+
+    it('a blank-free sentence is read THROUGH (audio glides between blanks)', () => {
+        // In Liebe Lisa, "Nur um Max mache ich mir Gedanken." sits between blank 0
+        // and blank 1 with no blank of its own — the read after blank 0 must
+        // include it, proving the glide past blank-free sentences.
+        expect(rounds[0].spokenText).toContain('Gedanken');
+    });
+
+    it('the final blank reads to the end of the letter', () => {
+        const last = rounds[rounds.length - 1];
+        expect(last.spokenText).toContain('Elisabeth');
+    });
+
+    it('a second blank on a line shows the first blank filled in its lead-in', () => {
+        // The "Freundinnen" blank is the 2nd on its line; its lead-in must contain
+        // the already-answered first blank word ("Kinder"), not a gap.
+        const r = rounds.find(x => x.answer === 'Freundinnen');
+        expect(r, 'expected a Freundinnen blank').toBeDefined();
+        const lead = r!.promptText.replace(/\s*_+\s*$/, '');
+        expect(lead).toContain('Kinder');
+    });
+});

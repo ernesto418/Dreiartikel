@@ -108,18 +108,56 @@ function buildView(
     return { lines, blankWords };
 }
 
-/** The plain text of a line up to (and excluding) its k-th blank — the "lead-in"
- *  read aloud before the learner answers. Returns '' if there's no such blank. */
-function leadInBeforeBlank(line: Segment[], localBlankOrdinal: number): string {
-    let text = '';
-    let seen = 0;
-    for (const seg of line) {
-        if (seg.kind === 'text') { text += seg.text; continue; }
-        if (seen === localBlankOrdinal) return text.trim();
-        seen++;
-        text += ''; // a prior blank in the same line: skip its (unknown) word
+/** The text shown/read up to (and excluding) the blank with global index
+ *  `globalBlank` — the "lead-in". Earlier blanks on the same line are already
+ *  answered, so they're filled with their resolved answer (not left as a gap).
+ *  Operates on the view so it has those answers. */
+function leadInBeforeBlank(viewLine: StorySegmentView[], globalBlank: number): string {
+    let out = '';
+    for (const seg of viewLine) {
+        if (seg.kind === 'text') { out += seg.text; continue; }
+        if (seg.blankIndex === globalBlank) break;     // reached our blank
+        out += seg.answer ?? '';                       // an earlier blank: fill it
     }
-    return text.trim();
+    return out.replace(/\s+/g, ' ').trim();
+}
+
+/** The continuous read spoken AFTER a blank is answered: the rest of the current
+ *  sentence (with this blank — and any already-passed blanks — filled), then the
+ *  following text flowing into the next sentence, stopping right BEFORE the next
+ *  unanswered blank. This is what makes the audio glide sentence-to-sentence.
+ *
+ *  Walks the answer-resolved view from just after `globalBlank` to just before
+ *  `globalBlank + 1`, emitting text and filled answers along the way. */
+function continuationAfterBlank(lines: StorySegmentView[][], globalBlank: number): string {
+    // Concatenate raw (text runs already carry their own spacing; answers slot
+    // in where a blank was), then collapse whitespace at the end.
+    let out = '';
+    let passedCurrent = false;
+    const done = () => out.replace(/\s+/g, ' ').trim();
+
+    for (let li = 0; li < lines.length; li++) {
+        const line = lines[li];
+        for (const seg of line) {
+            if (seg.kind === 'text') {
+                if (passedCurrent) out += seg.text;
+                continue;
+            }
+            const bi = seg.blankIndex!;
+            if (bi < globalBlank) continue;          // already read in a prior round
+            if (bi === globalBlank) {
+                out += seg.answer ?? '';             // fill the just-answered blank
+                passedCurrent = true;
+                continue;
+            }
+            // bi > globalBlank: the NEXT blank — stop here (silence while choosing).
+            return done();
+        }
+        // A line break between sentences reads as a brief pause.
+        if (passedCurrent) out += ' ';
+    }
+    // No further blank: read to the end of the letter.
+    return done();
 }
 
 /** Build the rounds for one story: one PracticeRound per blank, in reading
@@ -135,7 +173,6 @@ export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRo
 
     for (let li = 0; li < story.lines.length; li++) {
         const line = story.lines[li];
-        let localBlank = 0;
 
         for (const seg of line) {
             if (seg.kind === 'text') continue;
@@ -144,7 +181,6 @@ export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRo
             if (!item) {
                 // A blank word missing from the pool is a data bug; skip it so the
                 // story still plays. stories.test.ts catches this at build time.
-                localBlank++;
                 globalBlank++;
                 continue;
             }
@@ -152,8 +188,9 @@ export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRo
             const base = buildPluralRound(item);
             const answer = base.answer;
 
-            // Prompt: the line up to this blank, with the slot shown as ___.
-            const lead = leadInBeforeBlank(line, localBlank);
+            // Prompt: the line up to this blank (earlier blanks on the line shown
+            // filled), with this slot as ___.
+            const lead = leadInBeforeBlank(lines[li], globalBlank);
             const promptText = `${lead} ___`.trim();
 
             const context: StoryContext = {
@@ -168,16 +205,16 @@ export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRo
             rounds.push({
                 ...base,
                 promptText,
-                // Audio: speak the line up to the blank on show (safe — the answer
-                // is the omitted blank). The StoryCard sequences the post-answer
-                // "fill + continue" read itself, so spokenText stays the plain
-                // completed phrase as a sensible replay/answer fallback.
-                spokenText: `${lead} ${answer}`.trim(),
+                // Audio (continuous): on show, speak the lead-in up to the blank
+                // (handled in toRound from promptText). On answer, speak the rest
+                // of THIS sentence with the blank filled, then glide into the
+                // following text up to the NEXT blank — so the read flows
+                // sentence-to-sentence instead of stopping at each blank.
+                spokenText: continuationAfterBlank(lines, globalBlank),
                 speakOnShowSafe: true,
                 storyContext: context,
             });
 
-            localBlank++;
             globalBlank++;
         }
     }
