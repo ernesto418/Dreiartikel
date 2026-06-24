@@ -1,4 +1,4 @@
-import kaplay, { type KAPLAYCtx, type GameObj } from 'kaplay';
+import kaplay, { type KAPLAYCtx, type GameObj, type TweenController } from 'kaplay';
 import { MAP_NODES, MAP_EDGES, nodeById, type MapNode } from '../map';
 import type { GameMode } from '../hooks/useGameState';
 
@@ -320,10 +320,47 @@ export function createMapScene(canvas: HTMLCanvasElement, onSelect: (id: string)
         });
     }
 
+    // ── Node graph (for routing the hero ALONG the roads) ──────────────────
+    // Undirected adjacency from the edges: the hero can travel either direction.
+    const adj = new Map<string, string[]>();
+    for (const n of MAP_NODES) adj.set(n.id, []);
+    for (const e of MAP_EDGES) {
+        adj.get(e.from)?.push(e.to);
+        adj.get(e.to)?.push(e.from);
+    }
+
+    /** BFS shortest node path between two node ids (inclusive of both ends). */
+    function nodePath(from: string, to: string): string[] {
+        if (from === to) return [from];
+        const prev = new Map<string, string>();
+        const queue = [from];
+        const seen = new Set([from]);
+        while (queue.length) {
+            const cur = queue.shift()!;
+            for (const next of adj.get(cur) ?? []) {
+                if (seen.has(next)) continue;
+                seen.add(next);
+                prev.set(next, cur);
+                if (next === to) {
+                    const path = [to];
+                    let p = to;
+                    while (prev.has(p)) { p = prev.get(p)!; path.unshift(p); }
+                    return path;
+                }
+                queue.push(next);
+            }
+        }
+        return [from, to]; // disconnected fallback: straight hop
+    }
+
+    const cellCenter = (cell: { col: number; row: number }) =>
+        k.vec2(cell.col * TILE + TILE / 2, cell.row * TILE + TILE / 2 + 2);
+
     // ── Hero ───────────────────────────────────────────────────────────────
-    const heroStart = cellOf.get(MAP_NODES[0].id)!;
+    let heroNodeId = MAP_NODES[0].id;
+    const heroStart = cellOf.get(heroNodeId)!;
     const hero = k.add([
-        k.pos(heroStart.col * TILE + TILE / 2, heroStart.row * TILE + TILE / 2 + 2),
+        k.pos(cellCenter(heroStart)),
         k.anchor('center'),
         k.z(15),
         k.scale(1),
@@ -337,20 +374,60 @@ export function createMapScene(canvas: HTMLCanvasElement, onSelect: (id: string)
         hero.pos.y += Math.sin(heroBob) * 0.05;
     });
 
-    // Tween the hero to a node when selected (walks straight; simple + reads well).
-    let walkTween: { cancel: () => void } | null = null;
+    // Walk the hero ALONG the roads to a node: build the full list of road cells
+    // (the same L-shaped tracePath the roads are drawn from) for every edge on the
+    // route, then tween through those waypoints in sequence so the hero turns the
+    // 90° corners instead of cutting across them diagonally.
+    let walkTween: TweenController | null = null;
+    let walkGen = 0;             // bumped per walk; stale onEnd callbacks no-op
     function moveHeroTo(nodeId: string) {
-        const cell = cellOf.get(nodeId);
-        if (!cell) return;
-        const dest = k.vec2(cell.col * TILE + TILE / 2, cell.row * TILE + TILE / 2 + 2);
+        if (!cellOf.has(nodeId)) return;
         walkTween?.cancel();
-        walkTween = k.tween(
-            hero.pos,
-            dest,
-            0.5,
-            (v) => { hero.pos = v; },
-            k.easings.easeInOutQuad,
-        );
+        const myGen = ++walkGen;  // any in-flight chain now has an older gen
+
+        const route = nodePath(heroNodeId, nodeId);
+        heroNodeId = nodeId;
+
+        // Concatenate the road cells for each hop along the route into one path.
+        // CRUCIAL: trace each hop in the SAME orientation the road was drawn with
+        // (edge.from → edge.to), then reverse if the hero travels the other way —
+        // otherwise an L-shaped road would corner differently going backwards and
+        // the hero would leave the road.
+        const waypoints: ReturnType<typeof cellCenter>[] = [];
+        for (let i = 0; i < route.length - 1; i++) {
+            const u = route[i];
+            const v = route[i + 1];
+            const edge = MAP_EDGES.find(
+                e => (e.from === u && e.to === v) || (e.from === v && e.to === u),
+            );
+            // Trace as the road was drawn (from→to), reverse if walking to→from.
+            const fromId = edge ? edge.from : u;
+            const toId = edge ? edge.to : v;
+            let cells = tracePath(cellOf.get(fromId)!, cellOf.get(toId)!);
+            if (fromId !== u) cells = cells.slice().reverse();
+            // skip the first cell of each hop after the first (it's the previous
+            // hop's last cell) to avoid a zero-length pause
+            for (let j = i === 0 ? 0 : 1; j < cells.length; j++) {
+                waypoints.push(cellCenter(cells[j]));
+            }
+        }
+        if (waypoints.length === 0) return;
+
+        const SECONDS_PER_TILE = 0.12;
+        let idx = 0;
+        const step = () => {
+            if (myGen !== walkGen || idx >= waypoints.length) return;
+            const target = waypoints[idx++];
+            walkTween = k.tween(
+                hero.pos,
+                target,
+                SECONDS_PER_TILE,
+                (v) => { hero.pos = v; },
+                k.easings.linear,
+            );
+            walkTween.onEnd(() => step());
+        };
+        step();
     }
 
     // Initial selection on the first node.
