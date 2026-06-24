@@ -12,7 +12,10 @@
 //   the answer logic — they simply stand out as the one real form among decoys.
 
 import { genderHint, type Hint } from './hints';
-import { shuffle, type PracticeItem } from './data';
+import { type PracticeItem } from './data';
+import { shuffle, randomOf } from './utils/random';
+import { capitalize } from './utils/text';
+import type { PracticeRound } from './round';
 import type { Gender } from './rules';
 
 /** The shapes a German plural can take (the eight rows of the Formen table) plus
@@ -151,18 +154,11 @@ function pluralHint(pattern: PluralPattern): Hint {
 
 const GENDER_WORD: Record<Gender, string> = { m: 'masculine', f: 'feminine', n: 'neuter' };
 
-export interface PluralRound {
-    item: PracticeItem;
-    /** What the learner sees: "das Buch" (singular with its article). */
-    promptText: string;
-    /** Read aloud after answering: "das Buch — die Bücher". */
-    spokenText: string;
-    /** The correct plural, e.g. "Bücher". */
-    answer: string;
-    /** Shuffled full-word options: the real plural + decoys. */
-    options: string[];
-    tipp: string;
-    hints: Hint[];
+/** A plural round is a `PracticeRound` whose answer is a stored plural and whose
+ *  options are the real plural plus pattern-derived decoys. The prompt ("das
+ *  Buch") never reveals the plural, so it is safe to speak on show. */
+export interface PluralRound extends PracticeRound {
+    pattern: PluralPattern;
 }
 
 const DEFAULT_OPTION_COUNT = 3; // 1 answer + 2 decoys — keeps the ← ↓ → loop and
@@ -182,15 +178,8 @@ export function buildPluralRound(item: PracticeItem, optionCount = DEFAULT_OPTIO
     const tipp = `${capitalize(GENDER_WORD[item.gender])} "${article} ${item.word}" → plural "die ${answer}" (${PATTERN_LABEL[pattern]}).`;
     const hints: Hint[] = [pluralHint(pattern), genderHint(item.word, item.gender)];
 
-    return { item, promptText, spokenText, answer, options, tipp, hints };
-}
-
-function capitalize(s: string): string {
-    return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function randomOf<T>(arr: T[]): T {
-    return arr[Math.floor(Math.random() * arr.length)];
+    // The singular prompt never contains the plural, so it's safe to speak on show.
+    return { item, promptText, spokenText, speakOnShowSafe: true, answer, options, tipp, hints, pattern };
 }
 
 /** Pick one random plural round from a pool, or null if none are eligible. */

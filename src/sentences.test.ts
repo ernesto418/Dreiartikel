@@ -105,6 +105,45 @@ describe('hints', () => {
     });
 });
 
+describe('case-question test (Wer?/Wen?/Wem? — Hueber 1.3)', () => {
+    const rule = (id: string, item: PracticeItem) =>
+        buildRound(item, byId(id)).hints.find(h => h.kind === 'rule')!.text;
+
+    it('asks Wen? for a person object, Was? for a thing object (Akkusativ)', () => {
+        expect(rule('akk-sehen', FRAU)).toContain('Wen?');   // person → Wen?
+        expect(rule('akk-sehen', HUND)).toContain('Was?');   // thing  → Was?
+    });
+
+    it('asks Wem? in the Dativ regardless of animacy', () => {
+        expect(rule('dat-helfen', FRAU)).toContain('Wem?');  // person
+        expect(rule('dat-mit', HUND)).toContain('Wem?');     // thing
+    });
+
+    it('asks Wer? for a person subject in the Nominativ', () => {
+        expect(rule('nom-gross', KIND)).toContain('Wer?');   // person subject
+        expect(rule('nom-gross', HUND)).toContain('Was?');   // thing subject
+    });
+
+    it('puts the question test in the error explanation too', () => {
+        const akk = buildRound(FRAU, byId('akk-sehen')).tipp;
+        const dat = buildRound(FRAU, byId('dat-helfen')).tipp;
+        expect(akk).toContain('Wen?');
+        expect(dat).toContain('Wem?');
+    });
+
+    it('never leaks the article through the question test', () => {
+        for (const item of [HUND, FRAU, KIND]) {
+            for (const t of TEMPLATES) {
+                if (!matches(item, t)) continue;
+                const r = buildRound(item, t);
+                const ruleText = r.hints.find(h => h.kind === 'rule')!.text;
+                // Word-boundary match: "gender" contains "der" as a substring.
+                expect(ruleText, t.id).not.toMatch(new RegExp(`\\b${r.answer}\\b`));
+            }
+        }
+    });
+});
+
 describe('matches / semantic constraints', () => {
     it('person-only templates reject things and accept people', () => {
         expect(matches(HUND, byId('dat-helfen'))).toBe(false);
@@ -171,5 +210,44 @@ describe('pickRound / generateRounds', () => {
     it('generateRounds covers each eligible noun once', () => {
         const rounds = generateRounds([HUND, FRAU, KIND]);
         expect(rounds.length).toBe(3);
+    });
+});
+
+describe('case filter (study one case at a time)', () => {
+    const pool = [HUND, FRAU, KIND, PARK];
+
+    it('generateRounds restricted to a case yields only that case', () => {
+        for (const c of ['nom', 'akk', 'dat'] as const) {
+            const rounds = generateRounds(pool, c);
+            expect(rounds.length, c).toBeGreaterThan(0);
+            for (const r of rounds) expect(r.template.case, `${c}/${r.template.id}`).toBe(c);
+        }
+    });
+
+    it("'all' mixes cases (over many runs, not collapsed to one)", () => {
+        // Each noun maps to one *random* matching template, so a single 4-noun
+        // run can by chance land all on 'nom-gross'. The invariant is over many
+        // runs: 'all' must surface more than one case.
+        const cases = new Set<string>();
+        for (let i = 0; i < 50; i++) {
+            for (const r of generateRounds(pool, 'all')) cases.add(r.template.case);
+        }
+        expect(cases.size).toBeGreaterThan(1);
+    });
+
+    it('pickRound restricted to a case only ever returns that case', () => {
+        for (let i = 0; i < 200; i++) {
+            const r = pickRound(pool, 'dat');
+            if (r) expect(r.template.case).toBe('dat');
+        }
+    });
+
+    it('returns empty/null when no noun fits the chosen case (no crash)', () => {
+        // A thing-only pool against Dativ: every dat template here is person-only
+        // or a preposition. Prepositions accept 'any', so a thing still fits —
+        // assert it stays a Dativ round rather than wrongly producing another case.
+        const things = [HUND]; // thing
+        const rounds = generateRounds(things, 'dat');
+        for (const r of rounds) expect(r.template.case).toBe('dat');
     });
 });

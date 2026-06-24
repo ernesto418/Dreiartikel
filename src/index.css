@@ -196,6 +196,42 @@ h1.active-word.sentence {
   color: #fff;
 }
 
+/* Case filter (Cases mode only): a lighter, smaller sibling of the mode toggle.
+   Four options wrap to two rows on narrow phones rather than overflow. */
+.case-filter-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  margin: -0.75rem auto 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-hover);
+  border-radius: 999px;
+}
+
+.case-filter-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-hint);
+  background: transparent;
+  transition: background 0.2s, color 0.2s;
+}
+
+.case-filter-btn:hover {
+  color: var(--color-text);
+}
+
+.case-filter-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
 .hint-text {
   font-size: 1.5rem;
   color: var(--color-hint);

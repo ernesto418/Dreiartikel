@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useGameState, type FilterType, type GameMode } from './hooks/useGameState';
+import { useGameState, type FilterType, type GameMode, type CaseFilter } from './hooks/useGameState';
 import { useInput } from './hooks/useInput';
 import { getCategories } from './data';
 import { getHypeLevel, fireConfetti } from './utils/confetti';
@@ -14,6 +14,7 @@ function App() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const [mode, setMode] = useState<GameMode>('article');
+  const [caseFilter, setCaseFilter] = useState<CaseFilter>('all');
 
   const {
     currentWord,
@@ -36,7 +37,7 @@ function App() {
     replay: onReplay,
     itemsLeft,
     timeBank,
-  } = useGameState(filter, mode, started);
+  } = useGameState(filter, mode, caseFilter, started);
 
   const prevStreakRef = useRef(0);
 
@@ -72,6 +73,8 @@ function App() {
       <StartScreen
         mode={mode}
         onModeChange={setMode}
+        caseFilter={caseFilter}
+        onCaseFilterChange={setCaseFilter}
         onStart={() => setStarted(true)}
       />
     );

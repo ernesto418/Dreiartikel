@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { generateItems, shuffle, type PracticeItem } from '../data';
-import { hasRule, getTipp, getHint } from '../rules';
-import { generateRounds } from '../sentences';
+import { generateItems } from '../data';
+import { hasRule } from '../rules';
+import { generateArticleRounds } from '../articles';
+import { generateRounds, type CaseFilter } from '../sentences';
 import { generatePluralRounds } from '../plurals';
-import { genderHint, HINT_BUDGET, HINT_KINDS, type Hint, type HintKind } from '../hints';
+import { HINT_BUDGET, HINT_KINDS, type Hint, type HintKind } from '../hints';
+import type { PracticeRound, RoundGenerator } from '../round';
 import { playWord, stopSpeech } from '../utils/speech';
 
 const HINT_FREEZE_MS = 3000; // how long the timer freezes while a hint shows
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
 export type GameMode = 'article' | 'case-single' | 'plural';
+export type { CaseFilter } from '../sentences';
 
 /** The presentable unit the game loop consumes, identical across modes. */
 export interface Round {
@@ -38,7 +41,42 @@ const INITIAL_TIME_BANK = 3000; // 3 seconds starting budget
 const TIME_PER_WORD = 3000;     // 3 seconds allowed per word
 const BONUS_CAP = 2000;         // max bonus you can recover per word
 
-function buildQueue(filter: FilterType, mode: GameMode): Round[] {
+// Each mode is one pure pool→rounds function behind the same contract. Adding a
+// mode means registering it here — the loop below never changes. Case mode also
+// takes a CaseFilter (study only Dativ, etc.), bound in buildQueue.
+const GENERATORS: Record<GameMode, RoundGenerator> = {
+    'article': generateArticleRounds,
+    'case-single': generateRounds,   // caseFilter applied in buildQueue
+    'plural': generatePluralRounds,
+};
+
+/** Adapt a mode's `PracticeRound` to the UI `Round` the loop renders. The only
+ *  per-mode variation is audio safety: if the prompt can't be spoken without
+ *  leaking the answer (case mode), stay silent on show and replay the bare noun;
+ *  otherwise speak the prompt and reinforce with the full line after answering. */
+function toRound(r: PracticeRound): Round {
+    return {
+        id: r.item.id,
+        displayText: r.promptText,
+        // Translation line: only meaningful for the bare-word article prompt;
+        // the sentence/singular prompts already show the noun in context.
+        hint: r.promptText === r.item.word ? r.item.hint : undefined,
+        answer: r.answer,
+        options: r.options,
+        tipp: r.tipp,
+        // On show: the prompt, but only if speaking it can't leak the answer.
+        speakOnShow: r.speakOnShowSafe ? r.promptText : '',
+        // After answering: the full reinforcement line, when it adds something
+        // beyond the prompt (plural: "das Buch — die Bücher"; case: the full
+        // sentence). Article mode's spokenText === promptText, so no-op there.
+        speakOnAnswer: r.spokenText !== r.promptText ? r.spokenText : '',
+        // Replay: the prompt when safe, else the bare noun (never the article).
+        speakReplay: r.speakOnShowSafe ? r.promptText : r.item.word,
+        hints: r.hints,
+    };
+}
+
+function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter): Round[] {
     let items = generateItems();
 
     if (filter === 'by-rule') {
@@ -49,54 +87,14 @@ function buildQueue(filter: FilterType, mode: GameMode): Round[] {
         items = items.filter(i => i.category === filter);
     }
 
-    if (mode === 'plural') {
-        return generatePluralRounds(items).map(r => ({
-            id: r.item.id,
-            displayText: r.promptText,        // "das Buch"
-            answer: r.answer,                 // "Bücher"
-            options: r.options,
-            tipp: r.tipp,
-            speakOnShow: r.promptText,        // "das Buch" — says nothing about the plural
-            speakOnAnswer: r.spokenText,      // "das Buch — die Bücher"
-            speakReplay: r.promptText,        // re-hear the singular
-            hints: r.hints,
-        }));
-    }
-
-    if (mode === 'case-single') {
-        return generateRounds(items).map(r => ({
-            id: r.item.id,
-            displayText: r.promptText,
-            answer: r.answer,
-            options: r.options,
-            tipp: r.tipp,
-            speakOnShow: '',                 // no up-front audio — would leak the article
-            speakOnAnswer: r.spokenText,     // full correct sentence, after answering
-            speakReplay: r.item.word,        // re-hear just the noun (no article)
-            hints: r.hints,
-        }));
-    }
-
-    // Article mode: bare word, fixed der/die/das order (no shuffle) so the
-    // learner keeps muscle-memory positions.
-    return shuffle(items).map((item: PracticeItem) => ({
-        id: item.id,
-        displayText: item.word,
-        hint: item.hint,
-        answer: item.answer,
-        options: item.options,
-        tipp: getTipp(item.word, item.gender),
-        speakOnShow: item.word,
-        speakOnAnswer: '',
-        speakReplay: item.word,
-        hints: [
-            { kind: 'rule', text: getHint(item.word, item.gender) },
-            genderHint(item.word, item.gender),
-        ],
-    }));
+    // Case mode narrows by case (study only Dativ, etc.); other modes ignore it.
+    const rounds = mode === 'case-single'
+        ? generateRounds(items, caseFilter)
+        : GENERATORS[mode](items);
+    return rounds.map(toRound);
 }
 
-export function useGameState(filter: FilterType, mode: GameMode = 'article', active = true) {
+export function useGameState(filter: FilterType, mode: GameMode = 'article', caseFilter: CaseFilter = 'all', active = true) {
     const [queue, setQueue] = useState<Round[]>([]);
     const [currentWord, setCurrentWord] = useState<Round | null>(null);
     const [score, setScore] = useState(0);
@@ -149,12 +147,12 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         setIsFrozen(false);
     }, []);
 
-    // Initialize / reset game when filter or mode changes
+    // Initialize / reset game when filter, mode, or case filter changes
     useEffect(() => {
         clearAnswerTimer();
         clearAutoAdvance();
         clearFreeze();
-        const rounds = buildQueue(filter, mode);
+        const rounds = buildQueue(filter, mode, caseFilter);
         setQueue(rounds);
         setCurrentWord(rounds.length > 0 ? rounds[0] : null);
         setScore(0);
@@ -168,7 +166,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', act
         setShowTipp(false);
         setHintsRemaining({ ...HINT_BUDGET });   // refill hints on a new run
         setRevealedHint(null);
-    }, [filter, mode, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
+    }, [filter, mode, caseFilter, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
 
     // Play audio whenever a new round is displayed (only while the game is on
     // screen). Empty speakOnShow (case mode) is a no-op so the article isn't

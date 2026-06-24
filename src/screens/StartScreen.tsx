@@ -1,13 +1,16 @@
 import { ModeToggle } from '../components/ModeToggle';
-import type { GameMode } from '../hooks/useGameState';
+import { CaseFilterToggle } from '../components/CaseFilterToggle';
+import type { GameMode, CaseFilter } from '../hooks/useGameState';
 
 interface StartScreenProps {
     mode: GameMode;
     onModeChange: (mode: GameMode) => void;
+    caseFilter: CaseFilter;
+    onCaseFilterChange: (value: CaseFilter) => void;
     onStart: () => void;
 }
 
-export function StartScreen({ mode, onModeChange, onStart }: StartScreenProps) {
+export function StartScreen({ mode, onModeChange, caseFilter, onCaseFilterChange, onStart }: StartScreenProps) {
     return (
         <main>
             <div className="start-screen">
@@ -21,6 +24,11 @@ export function StartScreen({ mode, onModeChange, onStart }: StartScreenProps) {
                 </p>
 
                 <ModeToggle mode={mode} onChange={onModeChange} />
+
+                {/* Study one case at a time — only relevant in Cases mode. */}
+                {mode === 'case-single' && (
+                    <CaseFilterToggle value={caseFilter} onChange={onCaseFilterChange} />
+                )}
 
                 <div className="rules-card">
                     <h3>📜 How to play</h3>

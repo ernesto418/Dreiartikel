@@ -1,0 +1,46 @@
+// The practice-round contract — the seam every game mode plugs into.
+//
+// The app has one game loop (timer, streak, re-queue, hints, audio in
+// useGameState) and several *modes* that feed it: articles, cases, plurals, and
+// whatever comes next. Each mode is, at heart, one function:
+//
+//     pool of nouns  →  list of rounds to play
+//
+// Every mode produces the SAME round shape (`PracticeRound`), so the loop stays
+// mode-agnostic. The morphology differs wildly between modes — an article is
+// derived from (gender × case), a plural is a stored fact — but once a round is
+// built it is just a prompt, a correct answer, some shuffled options, an
+// explanation and hints. That uniformity is what lets a new mode be *registered*
+// rather than *wired in*.
+//
+// See plurals.ts's header for the deeper rule this encodes: some facts are
+// STORED (gender, plural) and some are DERIVED (article, decoys). A mode owns
+// that decision; the round it emits hides it.
+
+import type { Hint } from './hints';
+import type { PracticeItem } from './data';
+
+/** The unit a mode emits and the game loop consumes — identical across modes. */
+export interface PracticeRound {
+    /** The noun this round is about (carried for id, audio fallbacks, debugging). */
+    item: PracticeItem;
+    /** What the learner sees: a bare word, a sentence with a `___`, a singular. */
+    promptText: string;
+    /** Read aloud only on `speakOnShow` if it can't leak the answer; always the
+     *  full reinforcement line after answering ("das Buch — die Bücher"). */
+    spokenText: string;
+    /** Whether the prompt audio is safe to play before the learner answers.
+     *  False when speaking the prompt would reveal the article (case mode). */
+    speakOnShowSafe: boolean;
+    /** The correct choice, e.g. 'den' or 'Bücher'. */
+    answer: string;
+    /** The answer plus distinct decoys, shuffled. */
+    options: string[];
+    /** Explanation shown after answering. */
+    tipp: string;
+    /** Help revealable before answering — never the solution. */
+    hints: Hint[];
+}
+
+/** A mode is a pure function from a noun pool to the rounds to play. */
+export type RoundGenerator = (pool: PracticeItem[]) => PracticeRound[];

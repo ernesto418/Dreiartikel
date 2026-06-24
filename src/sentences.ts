@@ -4,7 +4,10 @@
 import { articleFor, optionsForCase, declineNoun, CASE_LABELS, type Case } from './declension';
 import { getTipp } from './rules';
 import { genderHint, type Hint } from './hints';
-import { shuffle, type Animacy, type PracticeItem } from './data';
+import { type Animacy, type PracticeItem } from './data';
+import { shuffle, randomOf } from './utils/random';
+import { capitalize } from './utils/text';
+import type { PracticeRound } from './round';
 
 /** What kind of noun can fill a template's slot. */
 export type SlotConstraint = Animacy | 'place' | 'any';
@@ -53,42 +56,51 @@ export const TEMPLATES: SentenceTemplate[] = [
     { id: 'wechsel-vor-dat', frame: 'Ich stehe vor ___.', case: 'dat', requires: 'place', trigger: "'vor' with a location verb (Wo?)", motion: 'wo' },
 ];
 
-export interface CaseRound {
-    item: PracticeItem;
+/** A case round is a `PracticeRound` whose answer is the article a noun takes in
+ *  the case the template governs. Speaking the prompt up front would reveal that
+ *  article, so `speakOnShowSafe` is always false. */
+export interface CaseRound extends PracticeRound {
     template: SentenceTemplate;
-    /** Sentence with the noun shown and the article blanked: "Ich sehe ___ Hund." */
-    promptText: string;
-    /** Full sentence read aloud, with the correct article: "Ich sehe den Hund." */
-    spokenText: string;
-    answer: string;        // the correct article, e.g. 'den'
-    options: string[];     // distinct article choices for this case (shuffled)
-    /** Explanation shown after answering. */
-    tipp: string;
-    /** Hints the learner can reveal *before* answering — never the solution. */
-    hints: Hint[];
+}
+
+// The case-question test (Hueber 1.3 §1a): you identify a noun's case by the
+// question it answers. Nominativ asks Wer?/Was?, Akkusativ Wen?/Was?, Dativ
+// always Wem?. Persons take the wer/wen/wem forms; things always take Was? (only
+// Dativ-thing falls back to Wem?, since Was? has no dative). This is the method
+// the book leads with, so it goes in BOTH the hint and the error explanation.
+const CASE_QUESTION: Record<Case, { person: string; thing: string }> = {
+    nom: { person: 'Wer?', thing: 'Was?' },
+    akk: { person: 'Wen?', thing: 'Was?' },
+    dat: { person: 'Wem?', thing: 'Wem?' },
+    gen: { person: 'Wessen?', thing: 'Wessen?' },
+};
+
+/** The question word that identifies this case for this noun, e.g. a person in
+ *  the Akkusativ answers "Wen?", a thing answers "Was?". */
+function caseQuestion(caseName: Case, animacy: Animacy): string {
+    const q = CASE_QUESTION[caseName];
+    return animacy === 'person' ? q.person : q.thing;
 }
 
 /** Hints for a case round: the rule trigger (names the case, not the article)
- *  plus the noun's gender. e.g. "The preposition 'zu' takes the Dativ." and
- *  "Kirche is feminine." For Nominativ, where case is a no-op, the rule hint
- *  nudges toward gender instead. */
+ *  plus the noun's gender. e.g. "The preposition 'zu' takes the Dativ. (Ask
+ *  Wem?)" and "Kirche is feminine." For Nominativ, where case is a no-op, the
+ *  rule hint nudges toward gender instead. The Wer?/Wen?/Wem? question test
+ *  (Hueber 1.3) is appended so the learner learns *how* to spot the case. */
 function buildHints(item: PracticeItem, template: SentenceTemplate): Hint[] {
+    const question = caseQuestion(template.case, item.animacy);
     let ruleText: string;
     if (template.motion) {
         // Two-way preposition: teach the decision, not just the case.
         ruleText = template.motion === 'wohin'
-            ? 'Motion toward a goal — ask “Wohin?” → Akkusativ.'
-            : 'Static location — ask “Wo?” → Dativ.';
+            ? `Motion toward a goal — ask “Wohin?” → Akkusativ. (Ask “${question}”)`
+            : `Static location — ask “Wo?” → Dativ. (Ask “${question}”)`;
     } else if (template.case === 'nom') {
-        ruleText = 'The subject is in the Nominativ — think about the noun’s gender.';
+        ruleText = `The subject is in the Nominativ (ask “${question}”) — think about the noun’s gender.`;
     } else {
-        ruleText = `${capitalize(template.trigger)} takes the ${CASE_LABELS[template.case]}.`;
+        ruleText = `${capitalize(template.trigger)} takes the ${CASE_LABELS[template.case]} — ask “${question}”.`;
     }
     return [{ kind: 'rule', text: ruleText }, genderHint(item.word, item.gender)];
-}
-
-function capitalize(s: string): string {
-    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** Educational explanation for a round. Nominativ leans on the gender rule
@@ -104,6 +116,7 @@ function buildTipp(item: PracticeItem, template: SentenceTemplate, answer: strin
     const basePhrase = `${baseArticle} ${item.word}`;                          // der Junge
     const resultPhrase = `${answer} ${declineNoun(item.word, weak, template.case)}`; // den Jungen
     const caseName = CASE_LABELS[template.case];
+    const question = caseQuestion(template.case, item.animacy);
     const change = basePhrase === resultPhrase
         ? `"${basePhrase}" stays "${resultPhrase}" — ${caseName} doesn't change it.`
         : `"${basePhrase}" becomes "${resultPhrase}".`;
@@ -114,7 +127,8 @@ function buildTipp(item: PracticeItem, template: SentenceTemplate, answer: strin
             ? `Motion (Wohin?) → ${caseName}`
             : `Location (Wo?) → ${caseName}`)
         : `${capitalize(template.trigger)} takes the ${caseName}`;
-    return `${lead}: ${change}`;
+    // The question test (Hueber 1.3): show what to ask to find the case yourself.
+    return `${lead}. Ask “${question}” → ${caseName}: ${change}`;
 }
 
 /** Build a single case round from an item + template. */
@@ -126,7 +140,8 @@ export function buildRound(item: PracticeItem, template: SentenceTemplate): Case
     const spokenText = template.frame.replace('___', `${answer} ${noun}`);
     const tipp = buildTipp(item, template, answer);
     const hints = buildHints(item, template);
-    return { item, template, promptText, spokenText, answer, options, tipp, hints };
+    // Speaking the prompt would reveal the article, so it's never safe on show.
+    return { item, template, promptText, spokenText, speakOnShowSafe: false, answer, options, tipp, hints };
 }
 
 /** Is this noun usable in sentence mode at all? (Phase 1: singular only.) */
@@ -141,19 +156,26 @@ export function matches(item: PracticeItem, t: SentenceTemplate): boolean {
     return t.requires === item.animacy;
 }
 
-function randomOf<T>(arr: T[]): T {
-    return arr[Math.floor(Math.random() * arr.length)];
+/** Which case(s) to drill. `'all'` mixes every case (the default); a single
+ *  case restricts rounds to templates governing that case — so a learner can
+ *  study only Akkusativ, only Dativ, etc. (Nominativ included for completeness.) */
+export type CaseFilter = 'all' | Case;
+
+/** Templates governing the chosen case (all of them when `caseFilter` is 'all'). */
+function templatesForCase(caseFilter: CaseFilter): SentenceTemplate[] {
+    return caseFilter === 'all' ? TEMPLATES : TEMPLATES.filter(t => t.case === caseFilter);
 }
 
 /** Pick one random (template, noun) round from a noun pool, or null if the pool
- *  has no eligible nouns. Template-first, then a noun that satisfies it. */
-export function pickRound(pool: PracticeItem[]): CaseRound | null {
+ *  has no eligible nouns. Template-first, then a noun that satisfies it.
+ *  `caseFilter` narrows to a single case (e.g. study only Dativ). */
+export function pickRound(pool: PracticeItem[], caseFilter: CaseFilter = 'all'): CaseRound | null {
     const eligible = pool.filter(isEligible);
     if (eligible.length === 0) return null;
 
-    // Only consider templates that at least one eligible noun can satisfy, so a
-    // person-only template never deadlocks a pool with no people.
-    const usableTemplates = TEMPLATES.filter(t => eligible.some(i => matches(i, t)));
+    // Only consider templates for the chosen case that at least one eligible noun
+    // can satisfy, so a person-only template never deadlocks a pool with no people.
+    const usableTemplates = templatesForCase(caseFilter).filter(t => eligible.some(i => matches(i, t)));
     if (usableTemplates.length === 0) return null;
 
     const template = randomOf(usableTemplates);
@@ -161,12 +183,15 @@ export function pickRound(pool: PracticeItem[]): CaseRound | null {
     return buildRound(randomOf(candidates), template);
 }
 
-/** Build a shuffled list of rounds covering the eligible pool once. */
-export function generateRounds(pool: PracticeItem[]): CaseRound[] {
+/** Build a shuffled list of rounds covering the eligible pool once. `caseFilter`
+ *  narrows to a single case; a noun that fits no template for that case (e.g. a
+ *  thing under a person-only Dativ template) is dropped. */
+export function generateRounds(pool: PracticeItem[], caseFilter: CaseFilter = 'all'): CaseRound[] {
+    const templates = templatesForCase(caseFilter);
     const eligible = shuffle(pool.filter(isEligible));
     return eligible
         .map(item => {
-            const usable = TEMPLATES.filter(t => matches(item, t));
+            const usable = templates.filter(t => matches(item, t));
             return usable.length ? buildRound(item, randomOf(usable)) : null;
         })
         .filter((r): r is CaseRound => r !== null);
