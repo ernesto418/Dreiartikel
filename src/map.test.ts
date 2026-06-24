@@ -6,7 +6,7 @@ import type { GameMode } from './hooks/useGameState';
 // arrays in map.ts, a typo'd id or an invalid mode fails here instead of
 // rendering a dead node at runtime.
 
-const VALID_MODES: GameMode[] = ['article', 'case-single', 'case-detect', 'plural'];
+const VALID_MODES: GameMode[] = ['article', 'case-single', 'case-detect', 'plural', 'story'];
 const VALID_CASE_FILTERS = ['all', 'nom', 'akk', 'dat', 'gen'];
 
 describe('map nodes', () => {
@@ -68,10 +68,10 @@ describe('map edges', () => {
 });
 
 describe('iteration 1 graph', () => {
-    it('ships the four planned lessons', () => {
+    it('ships the planned lessons', () => {
         const ids = MAP_NODES.map(n => n.id);
         expect(ids).toEqual(
-            expect.arrayContaining(['articles', 'plural', 'cases-produce', 'cases-detect']),
+            expect.arrayContaining(['articles', 'plural', 'plural-story', 'cases-produce', 'cases-detect']),
         );
     });
 
@@ -97,5 +97,12 @@ describe('iteration 1 graph', () => {
         const detectEdge = MAP_EDGES.find(e => e.to === 'cases-detect');
         expect(detectEdge).toBeDefined();
         expect(detectEdge!.kind).toBe('fork');
+    });
+
+    it('the Plural Story is a fork off Plural (a sidequest)', () => {
+        const storyEdge = MAP_EDGES.find(e => e.to === 'plural-story');
+        expect(storyEdge).toBeDefined();
+        expect(storyEdge!.from).toBe('plural');
+        expect(storyEdge!.kind).toBe('fork');
     });
 });

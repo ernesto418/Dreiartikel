@@ -44,6 +44,7 @@ export interface MapEdge {
 export const MAP_NODES: MapNode[] = [
     { id: 'articles', label: 'Articles', icon: '🎯', mode: 'article', x: 28, y: 16 },
     { id: 'plural', label: 'Plural', icon: '🔢', mode: 'plural', x: 70, y: 42 },
+    { id: 'plural-story', label: 'Plural · Story', icon: '✉️', mode: 'story', x: 94, y: 20 },
     { id: 'cases-produce', label: 'Cases · Produce', icon: '✍️', mode: 'case-single', x: 32, y: 72 },
     { id: 'cases-detect', label: 'Cases · Detect', icon: '🔍', mode: 'case-detect', x: 74, y: 96 },
 ];
@@ -51,6 +52,7 @@ export const MAP_NODES: MapNode[] = [
 export const MAP_EDGES: MapEdge[] = [
     { from: 'articles', to: 'plural', kind: 'main' },
     { from: 'plural', to: 'cases-produce', kind: 'main' },
+    { from: 'plural', to: 'plural-story', kind: 'fork' },
     { from: 'cases-produce', to: 'cases-detect', kind: 'fork' },
 ];
 

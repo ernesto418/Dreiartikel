@@ -630,13 +630,97 @@ mark.case-target {
   font-size: 0.45rem;
 }
 
-/* ── Filter dropdown + hint buttons (keep functional, just pixel-ish) ── */
+/* ── Filter dropdown + hint buttons (pixel parchment chips) ── */
 .game-screen.pixel .filter-dropdown button,
 .game-screen.pixel .hint-btn {
   font-family: var(--font-pixel);
   font-size: 0.5rem;
   border-radius: 0;
+  color: var(--pix-ink);
+  background: var(--pix-parchment-dk);
+  border: 0;
+  box-shadow: 0 0 0 2px var(--pix-ink), 2px 2px 0 2px rgba(0, 0, 0, 0.35);
 }
+.game-screen.pixel .hint-btn:disabled {
+  opacity: 0.55;
+}
+.game-screen.pixel .hint-btn .hint-count,
+.game-screen.pixel .hint-btn .hint-remaining {
+  color: var(--pix-wood-dk);
+}
+
+/* ── Story mode: the cumulative letter as a parchment scroll ── */
+.story-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  text-align: left;
+  /* aged-parchment letter */
+  background: linear-gradient(180deg, #efe2bd 0%, #e4d3a4 100%);
+  border: 3px solid var(--pix-wood);
+  border-radius: 0;
+  padding: 0.9rem 0.9rem 1rem;
+  box-shadow:
+    inset 0 0 0 2px var(--pix-parchment),
+    0 0 0 2px var(--pix-ink),
+    4px 4px 0 2px rgba(0, 0, 0, 0.45);
+}
+
+.story-title {
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  color: var(--pix-wood-dk);
+  margin: 0 0 0.7rem;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.story-replay {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  color: var(--pix-wood);
+}
+.story-replay svg { width: 18px; height: 18px; }
+
+.story-text {
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  line-height: 1.9;
+  color: var(--pix-ink);
+}
+
+.story-line {
+  margin: 0 0 0.6rem;
+}
+/* already-read lines recede; the active sentence is full-strength */
+.story-line.done { opacity: 0.55; }
+.story-line.current { opacity: 1; }
+
+/* inline blanks */
+.story-blank {
+  font-family: var(--font-pixel);
+  padding: 0 2px;
+}
+.story-blank.filled {
+  color: #1c6b34;
+  border-bottom: 2px solid #1c6b34;
+}
+.story-blank.missed {
+  color: #a8322e;
+  border-bottom: 2px solid #a8322e;
+}
+.story-blank.current {
+  color: var(--pix-wood-dk);
+  letter-spacing: 1px;
+  border-bottom: 2px solid var(--pix-wood-dk);
+  background: rgba(240, 196, 80, 0.35);
+}
+.story-blank.future {
+  color: #b6a679;
+}
+
+/* the story card uses the same pixel option/feedback styling as the word card */
+.game-screen.pixel .story-card .options-grid { margin-top: 1rem; }
 
 .hint-text {
   font-size: 1.5rem;

@@ -19,6 +19,7 @@
 
 import type { Hint } from './hints';
 import type { PracticeItem } from './data';
+import type { StoryContext } from './stories';
 
 /** The unit a mode emits and the game loop consumes — identical across modes. */
 export interface PracticeRound {
@@ -43,6 +44,11 @@ export interface PracticeRound {
     /** A substring of `promptText` to visually emphasise (detect mode marks the
      *  phrase whose case the learner must identify). Absent in other modes. */
     highlight?: string;
+    /** Present only for story-mode rounds: the narrative frame this blank sits
+     *  in, so the UI can render the cumulative letter. Its presence also tells
+     *  the loop this round is graded-once (no wrong-answer re-queue). Absent in
+     *  every other mode — the loop stays mode-agnostic. */
+    storyContext?: StoryContext;
 }
 
 /** A mode is a pure function from a noun pool to the rounds to play. */

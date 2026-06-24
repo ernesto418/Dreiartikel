@@ -18,6 +18,7 @@ const BLURB: Record<GameMode, string> = {
     'plural': 'A singular noun appears — pick its correct plural form.',
     'case-single': 'A sentence has a blank — pick the article the case needs.',
     'case-detect': 'A full sentence shows a highlighted phrase — name its case.',
+    'story': 'Read a short German letter — fill each blank as you go.',
 };
 
 export function MapScreen({ onStart }: MapScreenProps) {

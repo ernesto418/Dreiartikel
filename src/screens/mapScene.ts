@@ -90,6 +90,7 @@ function buildingFor(mode: GameMode): 'castle' | 'tower' | 'house' | 'camp' {
         case 'plural': return 'tower';
         case 'case-single': return 'house';
         case 'case-detect': return 'camp';
+        case 'story': return 'house';   // a cosy place to read a letter
     }
 }
 
