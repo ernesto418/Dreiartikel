@@ -9,24 +9,37 @@
 // hint and Tipp are DERIVED by the plural machinery — never duplicated.
 
 import { generateItems, type PracticeItem } from './data';
-import { buildPluralRound, hasPlural, pluralForm } from './plurals';
+import { buildPluralRound } from './plurals';
+import { articleFor, optionsForCase, declineNoun, CASE_LABELS, type Case } from './declension';
+import { genderHint, type Hint } from './hints';
+import { shuffle } from './utils/random';
 import type { PracticeRound } from './round';
 
 // ── Story data shape ────────────────────────────────────────────────────────
 
-/** A run of a line: literal text, or a blank to be filled with `word`'s plural. */
+/** A run of a line: literal text, or a blank for `word`. What the blank asks
+ *  depends on the story's mode:
+ *   - plural story → the answer is the noun's PLURAL form (the blank IS the noun)
+ *   - dativ story  → the answer is the ARTICLE in that case (dem/der); the
+ *                    declined noun is shown right after the blank automatically. */
 export type Segment =
     | { kind: 'text'; text: string }
-    | { kind: 'blank'; word: string };
+    | {
+        kind: 'blank';
+        word: string;
+        /** Dativ stories only: why this blank is Dativ, phrased for the Tipp
+         *  ("the preposition 'bei'"). Ignored by plural stories. */
+        trigger?: string;
+    };
 
 /** A story is an ordered list of lines; each line is a list of segments. Lines
  *  are the reading unit (we read/reveal line by line). */
 export interface Story {
     id: string;
     title: string;
-    /** Which grammar the blanks drill. Only 'plural' is implemented; the field
-     *  exists so a Dativ story can branch the blank-building later. */
-    mode: 'plural';
+    /** Which grammar the blanks drill — selects how each blank's answer/options
+     *  are built (plural form vs case article). */
+    mode: 'plural' | 'dativ';
     lines: Segment[][];
 }
 
@@ -66,6 +79,8 @@ export interface StoryContext {
 
 const t = (text: string): Segment => ({ kind: 'text', text });
 const b = (word: string): Segment => ({ kind: 'blank', word });
+/** A Dativ blank: `word` + the trigger phrase that forces the case (for the Tipp). */
+const bd = (word: string, trigger: string): Segment => ({ kind: 'blank', word, trigger });
 
 const LIEBE_LISA: Story = {
     id: 'liebe-lisa',
@@ -83,29 +98,90 @@ const LIEBE_LISA: Story = {
     ],
 };
 
-export const STORIES: Story[] = [LIEBE_LISA];
+// ── The second story: "Ein Tag mit der Familie" (Dativ) ─────────────────────
+// Every blank's answer is the ARTICLE in the Dativ (dem/der); the declined noun
+// is shown right after it. The trigger (a Dativ preposition) is given per blank
+// so the Tipp can explain *why* it's Dativ. A clear case-based fork.
+
+const FAMILIENTAG: Story = {
+    id: 'familientag',
+    title: 'Ein Tag mit der Familie',
+    mode: 'dativ',
+    lines: [
+        [t('Hallo Tom! Gestern war ein schöner Tag.')],
+        [t('Am Morgen bin ich mit '), bd('Hund', "the preposition 'mit'"), t(' im Park spazieren gegangen.')],
+        [t('Dann habe ich '), bd('Mutter', "the dative verb 'helfen'"), t(' beim Kochen geholfen.')],
+        [t('Nach dem Essen sind wir zu '), bd('Bruder', "the preposition 'zu'"), t(' gefahren.')],
+        [t('Er wohnt jetzt mit '), bd('Freundin', "the preposition 'mit'"), t(' in der Stadt.')],
+        [t('Am Abend habe ich noch von '), bd('Vater', "the preposition 'von'"), t(' ein Buch bekommen.')],
+        [t('Und du? Was hast du mit '), bd('Kind', "the preposition 'mit'"), t(' gemacht?')],
+        [t('Schreib bald! Dein Felix.')],
+    ],
+};
+
+export const STORIES: Story[] = [LIEBE_LISA, FAMILIENTAG];
+
+// ── Per-blank resolution (mode-aware) ────────────────────────────────────────
+
+/** Everything one blank needs, computed once and shared between the view and the
+ *  round. Plural and Dativ stories produce this same shape, so the view/audio
+ *  logic downstream is mode-agnostic. */
+interface ResolvedBlank {
+    item: PracticeItem;
+    /** The string that fills the blank (a plural form, or an article). */
+    answer: string;
+    /** The shuffled options for the 3-way selector. */
+    options: string[];
+    /** Text shown immediately AFTER the blank (the declined noun in Dativ; '' in
+     *  plural mode, where the blank itself is the noun). */
+    nounAfter: string;
+    tipp: string;
+    hints: Hint[];
+}
+
+function resolvePluralBlank(item: PracticeItem): ResolvedBlank {
+    const base = buildPluralRound(item);
+    return { item, answer: base.answer, options: base.options, nounAfter: '', tipp: base.tipp, hints: base.hints };
+}
+
+function resolveDativBlank(item: PracticeItem, trigger: string): ResolvedBlank {
+    const caseName: Case = 'dat';
+    const answer = articleFor(item.gender, caseName, 'sg');
+    const options = shuffle(optionsForCase(caseName, 'sg'));
+    const noun = declineNoun(item.word, !!item.isWeakMasculine, caseName, 'sg');
+    const tipp = `${trigger} takes the ${CASE_LABELS[caseName]}: "${answer} ${noun}".`;
+    const hints: Hint[] = [
+        { kind: 'rule', text: `${trigger} forces the ${CASE_LABELS[caseName]} — ask "wem?".` },
+        genderHint(item.word, item.gender),
+    ];
+    return { item, answer, options, nounAfter: noun, tipp, hints };
+}
 
 // ── Generation: each blank → one PracticeRound, with narrative context ───────
 
 /** Flatten a story's lines into the view shared across its rounds, numbering
- *  blanks globally in reading order and resolving each blank's answer (shown by
- *  the UI only after that blank is answered, so it's not a spoiler). */
+ *  blanks globally in reading order and resolving each blank (mode-aware). For a
+ *  Dativ blank the declined noun is inserted as a text segment right after the
+ *  blank, so the cumulative letter + audio render "bei dem Studio" naturally. */
 function buildView(
     story: Story,
-    byWord: Map<string, PracticeItem>,
-): { lines: StorySegmentView[][]; blankWords: string[] } {
-    const blankWords: string[] = [];
-    const lines: StorySegmentView[][] = story.lines.map(line =>
-        line.map(seg => {
-            if (seg.kind === 'text') return { kind: 'text', text: seg.text };
-            const blankIndex = blankWords.length;
-            blankWords.push(seg.word);
-            const item = byWord.get(seg.word);
-            const answer = item ? pluralForm(item) : seg.word;
-            return { kind: 'blank', text: '', blankIndex, answer };
-        }),
-    );
-    return { lines, blankWords };
+    resolve: (word: string) => ResolvedBlank | null,
+): { lines: StorySegmentView[][]; resolved: (ResolvedBlank | null)[] } {
+    const resolved: (ResolvedBlank | null)[] = [];
+    const lines: StorySegmentView[][] = story.lines.map(line => {
+        const out: StorySegmentView[] = [];
+        for (const seg of line) {
+            if (seg.kind === 'text') { out.push({ kind: 'text', text: seg.text }); continue; }
+            const blankIndex = resolved.length;
+            const rb = resolve(seg.word);
+            resolved.push(rb);
+            out.push({ kind: 'blank', text: '', blankIndex, answer: rb ? rb.answer : seg.word });
+            // Dativ: show the declined noun right after the article blank.
+            if (rb && rb.nounAfter) out.push({ kind: 'text', text: ` ${rb.nounAfter}` });
+        }
+        return out;
+    });
+    return { lines, resolved };
 }
 
 /** The text shown/read up to (and excluding) the blank with global index
@@ -160,77 +236,97 @@ function continuationAfterBlank(lines: StorySegmentView[][], globalBlank: number
     return done();
 }
 
+/** Find the line index (in the VIEW) containing the blank with a given index. */
+function viewLineOfBlank(lines: StorySegmentView[][], blankIndex: number): number {
+    for (let li = 0; li < lines.length; li++) {
+        if (lines[li].some(s => s.kind === 'blank' && s.blankIndex === blankIndex)) return li;
+    }
+    return 0;
+}
+
 /** Build the rounds for one story: one PracticeRound per blank, in reading
- *  order. Answer/options/hints/Tipp are reused from buildPluralRound; the prompt
- *  and audio are rewritten to the narrative, and storyContext is attached. */
+ *  order. Each blank is resolved mode-aware (plural form vs Dativ article); the
+ *  prompt/audio are rewritten to the narrative and storyContext is attached. */
 export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRound[] {
     const byWord = new Map(pool.map(i => [i.word, i]));
-    const { lines, blankWords } = buildView(story, byWord);
-    const blankCount = blankWords.length;
+
+    // The trigger for a Dativ blank rides on its segment; collect them in order.
+    const triggers: (string | undefined)[] = [];
+    for (const line of story.lines) {
+        for (const seg of line) {
+            if (seg.kind === 'blank') triggers.push(seg.trigger);
+        }
+    }
+
+    let blankOrdinal = 0;
+    const resolve = (word: string): ResolvedBlank | null => {
+        const item = byWord.get(word);
+        const trigger = triggers[blankOrdinal] ?? 'this preposition';
+        blankOrdinal++;
+        if (!item) return null;               // missing word — test catches it
+        return story.mode === 'dativ'
+            ? resolveDativBlank(item, trigger)
+            : resolvePluralBlank(item);
+    };
+
+    const { lines, resolved } = buildView(story, resolve);
+    const blankCount = resolved.length;
 
     const rounds: PracticeRound[] = [];
-    let globalBlank = 0;
+    for (let bi = 0; bi < resolved.length; bi++) {
+        const rb = resolved[bi];
+        if (!rb) continue;                    // unresolved blank: skip the round
 
-    for (let li = 0; li < story.lines.length; li++) {
-        const line = story.lines[li];
+        const li = viewLineOfBlank(lines, bi);
+        const lead = leadInBeforeBlank(lines[li], bi);
+        const promptText = `${lead} ___`.trim();
 
-        for (const seg of line) {
-            if (seg.kind === 'text') continue;
+        const context: StoryContext = {
+            storyId: story.id,
+            title: story.title,
+            lines,
+            blankIndex: bi,
+            blankCount,
+            answer: rb.answer,
+        };
 
-            const item = byWord.get(seg.word);
-            if (!item) {
-                // A blank word missing from the pool is a data bug; skip it so the
-                // story still plays. stories.test.ts catches this at build time.
-                globalBlank++;
-                continue;
-            }
-
-            const base = buildPluralRound(item);
-            const answer = base.answer;
-
-            // Prompt: the line up to this blank (earlier blanks on the line shown
-            // filled), with this slot as ___.
-            const lead = leadInBeforeBlank(lines[li], globalBlank);
-            const promptText = `${lead} ___`.trim();
-
-            const context: StoryContext = {
-                storyId: story.id,
-                title: story.title,
-                lines,
-                blankIndex: globalBlank,
-                blankCount,
-                answer,
-            };
-
-            rounds.push({
-                ...base,
-                promptText,
-                // Audio (continuous): on show, speak the lead-in up to the blank
-                // (handled in toRound from promptText). On answer, speak the rest
-                // of THIS sentence with the blank filled, then glide into the
-                // following text up to the NEXT blank — so the read flows
-                // sentence-to-sentence instead of stopping at each blank.
-                spokenText: continuationAfterBlank(lines, globalBlank),
-                speakOnShowSafe: true,
-                storyContext: context,
-            });
-
-            globalBlank++;
-        }
+        rounds.push({
+            item: rb.item,
+            promptText,
+            // Audio (continuous): lead-in up to the blank on show (from
+            // promptText in toRound); on answer, the rest of the sentence with
+            // the blank filled, gliding to the next blank.
+            spokenText: continuationAfterBlank(lines, bi),
+            speakOnShowSafe: true,
+            answer: rb.answer,
+            options: rb.options,
+            tipp: rb.tipp,
+            hints: rb.hints,
+            storyContext: context,
+        });
     }
 
     return rounds;
 }
 
-/** Story-mode RoundGenerator. A story is a fixed text, so it isn't narrowed by
- *  the noun-pool filter the way other modes are: we resolve blank words from the
- *  full item set (unioned with whatever `pool` was passed) so the story's plurals
- *  are always available regardless of the active filter. */
-export function generateStoryRounds(pool: PracticeItem[]): PracticeRound[] {
+/** All items, used to resolve story blank words regardless of the active noun
+ *  filter (a story is a fixed text, not narrowed by the pool). */
+function storyItemPool(pool: PracticeItem[]): PracticeItem[] {
     const byWord = new Map<string, PracticeItem>();
-    for (const item of [...generateItems(), ...pool]) {
-        if (hasPlural(item)) byWord.set(item.word, item);
-    }
-    const items = [...byWord.values()];
+    for (const item of [...generateItems(), ...pool]) byWord.set(item.word, item);
+    return [...byWord.values()];
+}
+
+/** Rounds for ONE story, selected by id. Falls back to the first story if the id
+ *  is unknown (shouldn't happen — map nodes set a valid storyId). */
+export function generateStoryRoundsFor(storyId: string | undefined, pool: PracticeItem[]): PracticeRound[] {
+    const story = STORIES.find(s => s.id === storyId) ?? STORIES[0];
+    return buildStoryRounds(story, storyItemPool(pool));
+}
+
+/** Story-mode RoundGenerator (plays every story; used when no specific story is
+ *  selected). Individual map nodes use generateStoryRoundsFor via buildQueue. */
+export function generateStoryRounds(pool: PracticeItem[]): PracticeRound[] {
+    const items = storyItemPool(pool);
     return STORIES.flatMap(story => buildStoryRounds(story, items));
 }

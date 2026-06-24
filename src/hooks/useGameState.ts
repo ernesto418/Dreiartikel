@@ -4,7 +4,7 @@ import { hasRule } from '../rules';
 import { generateArticleRounds } from '../articles';
 import { generateRounds, generateDetectRounds, type CaseFilter } from '../sentences';
 import { generatePluralRounds } from '../plurals';
-import { generateStoryRounds } from '../stories';
+import { generateStoryRounds, generateStoryRoundsFor } from '../stories';
 import type { StoryContext } from '../stories';
 import { HINT_BUDGET, HINT_KINDS, type Hint, type HintKind } from '../hints';
 import type { PracticeRound, RoundGenerator } from '../round';
@@ -93,7 +93,7 @@ function toRound(r: PracticeRound): Round {
     };
 }
 
-function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter): Round[] {
+function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter, storyId?: string): Round[] {
     let items = generateItems();
 
     if (filter === 'by-rule') {
@@ -104,20 +104,22 @@ function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter):
         items = items.filter(i => i.category === filter);
     }
 
-    // Case modes (produce + detect) narrow by case (study only Dativ, etc.);
-    // other modes ignore it.
+    // Case modes narrow by case; story mode plays one selected letter; other
+    // modes ignore both.
     let rounds: PracticeRound[];
     if (mode === 'case-single') {
         rounds = generateRounds(items, caseFilter);
     } else if (mode === 'case-detect') {
         rounds = generateDetectRounds(items, caseFilter);
+    } else if (mode === 'story') {
+        rounds = generateStoryRoundsFor(storyId, items);
     } else {
         rounds = GENERATORS[mode](items);
     }
     return rounds.map(toRound);
 }
 
-export function useGameState(filter: FilterType, mode: GameMode = 'article', caseFilter: CaseFilter = 'all', active = true) {
+export function useGameState(filter: FilterType, mode: GameMode = 'article', caseFilter: CaseFilter = 'all', active = true, storyId?: string) {
     const [queue, setQueue] = useState<Round[]>([]);
     const [currentWord, setCurrentWord] = useState<Round | null>(null);
     const [score, setScore] = useState(0);
@@ -179,7 +181,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', cas
         clearAnswerTimer();
         clearAutoAdvance();
         clearFreeze();
-        const rounds = buildQueue(filter, mode, caseFilter);
+        const rounds = buildQueue(filter, mode, caseFilter, storyId);
         setQueue(rounds);
         setCurrentWord(rounds.length > 0 ? rounds[0] : null);
         setScore(0);
@@ -194,7 +196,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', cas
         setHintsRemaining({ ...HINT_BUDGET });   // refill hints on a new run
         setRevealedHint(null);
         setStoryResults([]);
-    }, [filter, mode, caseFilter, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
+    }, [filter, mode, caseFilter, storyId, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
 
     // Play audio whenever a new round is displayed (only while the game is on
     // screen). Empty speakOnShow (case mode) is a no-op so the article isn't

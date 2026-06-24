@@ -1,17 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import { STORIES, buildStoryRounds, generateStoryRounds } from './stories';
+import { STORIES, buildStoryRounds, generateStoryRounds, generateStoryRoundsFor } from './stories';
 import { generateItems, type PracticeItem } from './data';
 import { pluralForm, hasPlural } from './plurals';
+import { articleFor } from './declension';
+import type { PracticeRound } from './round';
 
-// Story mode is a narrative wrapper over the plural engine: each blank in a
-// stored letter becomes ONE PracticeRound, answered with the noun's plural, and
-// the surrounding text rides along as `storyContext`. These guards protect the
-// two failure modes hand-entered story data invites: a blank word that doesn't
-// exist (or has no plural — unanswerable), and a prompt/hint that leaks the
-// answer before the learner picks it.
+// Story mode is a narrative wrapper over the practice engine: each blank in a
+// stored letter becomes ONE PracticeRound and the surrounding text rides along
+// as `storyContext`. What a blank asks depends on the story's MODE:
+//   - 'plural' stories  → the answer is the noun's plural ("Bücher"), 3 options.
+//   - 'dativ' stories   → the answer is the Dativ article ('dem'/'der'), and the
+//                          declined noun is shown as text after the blank. Dative
+//                          has only TWO distinct definite forms, so 2 options.
+// These guards protect the two failure modes hand-entered story data invites: a
+// blank word that doesn't exist (or has no plural — unanswerable), and a
+// prompt/hint that leaks the answer before the learner picks it.
 
 const items = generateItems();
 const byWord = new Map(items.map(i => [i.word, i]));
+
+/** A story's grammar mode, by id (rounds carry only the id in storyContext). */
+function modeForStory(storyId: string): Story['mode'] {
+    const story = STORIES.find(s => s.id === storyId);
+    if (!story) throw new Error(`unknown story id "${storyId}"`);
+    return story.mode;
+}
+
+type Story = (typeof STORIES)[number];
+
+/** The string that should fill a blank, given the item and the story's mode:
+ *  the plural form for plural stories, the Dativ article for dativ stories. */
+function expectedAnswer(item: PracticeItem, mode: Story['mode']): string {
+    return mode === 'dativ' ? articleFor(item.gender, 'dat', 'sg') : pluralForm(item);
+}
+
+/** The option count a mode produces: 3 for plurals (1 answer + 2 decoys); 2 for
+ *  Dativ (only 'dem'/'der' are distinct definite forms in the dative singular). */
+function expectedOptionCount(mode: Story['mode']): number {
+    return mode === 'dativ' ? 2 : 3;
+}
 
 /** Every blank word across all stories, in reading order, with its story id. */
 function allBlankWords(): { storyId: string; word: string }[] {
@@ -69,26 +96,39 @@ describe('generateStoryRounds', () => {
         expect(rounds.length).toBe(TOTAL_BLANKS);
     });
 
-    it('every round answers with the plural of its blank word', () => {
+    it('every round answers with the plural (or Dativ article) of its blank word', () => {
         const blanks = allBlankWords();
         for (let i = 0; i < rounds.length; i++) {
             const r = rounds[i];
+            const mode = modeForStory(blanks[i].storyId);
             const expectedItem = byWord.get(blanks[i].word) as PracticeItem;
             expect(
                 r.answer,
-                `round ${i} (${blanks[i].word}) answer`,
-            ).toBe(pluralForm(expectedItem));
+                `round ${i} (${blanks[i].storyId}/${blanks[i].word}) answer`,
+            ).toBe(expectedAnswer(expectedItem, mode));
+            // For Dativ rounds, the article is one of the two distinct forms.
+            if (mode === 'dativ') {
+                expect(
+                    ['dem', 'der'],
+                    `round ${i} dativ article must be dem/der`,
+                ).toContain(r.answer);
+            }
             // The round's own item must be the right noun too.
             expect(r.item.word, `round ${i} item`).toBe(blanks[i].word);
         }
     });
 
-    it('every round has exactly 3 options including the answer, all distinct', () => {
+    it('every round has all-distinct options including the answer (3 plural / 2 dativ)', () => {
+        const blanks = allBlankWords();
         for (let i = 0; i < rounds.length; i++) {
             const r = rounds[i];
+            const mode = modeForStory(blanks[i].storyId);
             expect(r.options, `round ${i} options must include answer`).toContain(r.answer);
-            expect(r.options.length, `round ${i} option count`).toBe(3);
             expect(new Set(r.options).size, `round ${i} distinct options`).toBe(r.options.length);
+            expect(
+                r.options.length,
+                `round ${i} (${mode}) option count`,
+            ).toBe(expectedOptionCount(mode));
         }
     });
 
@@ -107,6 +147,59 @@ describe('generateStoryRounds', () => {
             expect(r.options).toContain(r.answer);
         }
     });
+});
+
+// 2b. Dativ-mode specifics — the second story drills the Dativ article, which
+//     decouples it from the plural machinery: the answer is 'dem'/'der', options
+//     are the two distinct dative forms, and the declined noun is rendered after
+//     the blank. Asserted on the dativ story in isolation for clarity.
+describe('dativ story mode', () => {
+    const dativStories = STORIES.filter(s => s.mode === 'dativ');
+
+    it('has at least one dativ story to exercise the case fork', () => {
+        expect(dativStories.length, 'expected a dativ story').toBeGreaterThan(0);
+    });
+
+    for (const story of dativStories) {
+        describe(`"${story.id}"`, () => {
+            const rounds: PracticeRound[] = generateStoryRoundsFor(story.id, items);
+
+            it('every blank\'s answer is the Dativ article dem or der', () => {
+                expect(rounds.length, 'expected dativ rounds').toBeGreaterThan(0);
+                for (let i = 0; i < rounds.length; i++) {
+                    const r = rounds[i];
+                    expect(
+                        ['dem', 'der'],
+                        `round ${i} (${r.item.word}) answer "${r.answer}" must be dem/der`,
+                    ).toContain(r.answer);
+                    // And it must match the rule table for the noun's gender.
+                    expect(
+                        r.answer,
+                        `round ${i} (${r.item.word}/${r.item.gender}) dativ article`,
+                    ).toBe(articleFor(r.item.gender, 'dat', 'sg'));
+                }
+            });
+
+            it('offers exactly the two distinct dative forms as options', () => {
+                for (let i = 0; i < rounds.length; i++) {
+                    const r = rounds[i];
+                    expect(new Set(r.options), `round ${i} options`).toEqual(new Set(['dem', 'der']));
+                }
+            });
+
+            it('the on-answer read renders the declined noun after the article', () => {
+                // spokenText begins "<article> <noun> …" — e.g. "dem Hund …" —
+                // proving the declined noun is spoken right after the blank.
+                for (let i = 0; i < rounds.length; i++) {
+                    const r = rounds[i];
+                    expect(
+                        r.spokenText.startsWith(`${r.answer} ${r.item.word}`),
+                        `round ${i} read should start "${r.answer} ${r.item.word}…": ${r.spokenText}`,
+                    ).toBe(true);
+                }
+            });
+        });
+    }
 });
 
 // 3. storyContext coherence — the narrative frame must be internally consistent
@@ -148,7 +241,7 @@ describe('storyContext coherence', () => {
                 }
             });
 
-            it('the lines view resolves each blank to the plural of its word', () => {
+            it('the lines view resolves each blank to its plural (or Dativ article)', () => {
                 // The shared view is identical across rounds; read it off the first.
                 const view = rounds[0].storyContext!.lines;
                 const blankViews = view
@@ -160,10 +253,36 @@ describe('storyContext coherence', () => {
                     expect(blankViews[i].blankIndex, `view blank ${i} index`).toBe(i);
                     expect(
                         blankViews[i].answer,
-                        `view blank ${i} (${blankWords[i]}) answer`,
-                    ).toBe(pluralForm(expectedItem));
+                        `view blank ${i} (${story.id}/${blankWords[i]}) answer`,
+                    ).toBe(expectedAnswer(expectedItem, story.mode));
                 }
             });
+
+            // Dativ-specific: the article blank is followed by the declined noun
+            // as a text segment, so the cumulative letter reads "mit dem Hund".
+            if (story.mode === 'dativ') {
+                it('renders the declined noun as text right after each Dativ blank', () => {
+                    const view = rounds[0].storyContext!.lines;
+                    const flat = view.flat();
+                    for (let i = 0; i < flat.length; i++) {
+                        const seg = flat[i];
+                        if (seg.kind !== 'blank') continue;
+                        const after = flat[i + 1];
+                        expect(after, `blank ${seg.blankIndex} should be followed by a segment`).toBeDefined();
+                        expect(
+                            after!.kind,
+                            `blank ${seg.blankIndex} should be followed by noun text`,
+                        ).toBe('text');
+                        // The noun text is the blank word's stem (declension may add
+                        // -n/-en for weak masculines, so check a prefix match).
+                        const word = blankWords[seg.blankIndex!];
+                        expect(
+                            after!.text.trim().startsWith(word),
+                            `blank ${seg.blankIndex} noun text "${after!.text.trim()}" should start with "${word}"`,
+                        ).toBe(true);
+                    }
+                });
+            }
         });
     }
 });
@@ -180,14 +299,39 @@ describe('story rounds never leak the answer', () => {
         return new RegExp(`(^|\\W)${escaped}(\\W|$)`).test(haystack);
     }
 
-    it('promptText shows a ___ blank and never the answer', () => {
+    it('promptText shows a ___ blank, not pre-filled with the answer', () => {
+        const blanks = allBlankWords();
         for (let i = 0; i < rounds.length; i++) {
             const r = rounds[i];
+            const mode = modeForStory(blanks[i].storyId);
             expect(r.promptText, `round ${i} prompt should mark the blank`).toContain('___');
+            // The blank must be the trailing slot, never pre-filled with the answer.
             expect(
-                containsWord(r.promptText, r.answer),
-                `round ${i} prompt leaks "${r.answer}": ${r.promptText}`,
-            ).toBe(false);
+                r.promptText.trimEnd().endsWith('___'),
+                `round ${i} prompt should END with the ___ slot: ${r.promptText}`,
+            ).toBe(true);
+
+            if (mode === 'dativ') {
+                // A Dativ answer like 'der'/'dem' is a normal German word that
+                // legitimately appears in the surrounding prose ("Nach dem Essen"),
+                // so we DON'T forbid it from the lead-in. The real invariant is
+                // that the slot itself isn't pre-filled — i.e. the prompt ends at
+                // "___", with no article wedged into the blank position. Guard
+                // against the article immediately preceding the slot.
+                const beforeSlot = r.promptText.replace(/\s*_+\s*$/, '');
+                const lastWord = beforeSlot.split(/\s+/).pop() ?? '';
+                expect(
+                    lastWord,
+                    `round ${i} prompt should not pre-fill the slot with "${r.answer}": ${r.promptText}`,
+                ).not.toBe(r.answer);
+            } else {
+                // Plural answers are distinctive forms; they must never appear in
+                // the prompt at all (a true leak of the thing being asked).
+                expect(
+                    containsWord(r.promptText, r.answer),
+                    `round ${i} prompt leaks "${r.answer}": ${r.promptText}`,
+                ).toBe(false);
+            }
         }
     });
 
@@ -226,9 +370,24 @@ describe('story mode — continuous audio', () => {
         expect(rounds[0].spokenText).toContain('Gedanken');
     });
 
-    it('the final blank reads to the end of the letter', () => {
-        const last = rounds[rounds.length - 1];
-        expect(last.spokenText).toContain('Elisabeth');
+    it('each story\'s final blank reads to the end of its own letter', () => {
+        // Tested per story (via generateStoryRoundsFor) so it's robust to the
+        // order STORIES are concatenated in. Each closing word is the last word
+        // of that story's final line.
+        const closings: Record<string, string> = {
+            'liebe-lisa': 'Elisabeth', // "Alles Liebe, deine Elisabeth."
+            'familientag': 'Felix',    // "Schreib bald! Dein Felix."
+        };
+        for (const story of STORIES) {
+            const storyRounds = generateStoryRoundsFor(story.id, generateItems());
+            const last = storyRounds[storyRounds.length - 1];
+            const closing = closings[story.id];
+            expect(closing, `add a closing word for story "${story.id}"`).toBeDefined();
+            expect(
+                last.spokenText,
+                `${story.id} final blank should read to "${closing}"`,
+            ).toContain(closing);
+        }
     });
 
     it('a second blank on a line shows the first blank filled in its lead-in', () => {

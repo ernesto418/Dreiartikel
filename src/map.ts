@@ -22,6 +22,9 @@ export interface MapNode {
      *  drills only that case (a future "Dativ only" node). If unset, the panel
      *  shows the All/Nom/Akk/Dat filter. */
     caseFilter?: CaseFilter;
+    /** Story-mode nodes only: which story to play (a Story.id). Lets several
+     *  story nodes share mode:'story' but each launch a different letter. */
+    storyId?: string;
     /** Position on the SVG canvas, both in [0,100] (viewBox-relative). */
     x: number;
     y: number;
@@ -44,9 +47,10 @@ export interface MapEdge {
 export const MAP_NODES: MapNode[] = [
     { id: 'articles', label: 'Articles', icon: '🎯', mode: 'article', x: 28, y: 16 },
     { id: 'plural', label: 'Plural', icon: '🔢', mode: 'plural', x: 70, y: 42 },
-    { id: 'plural-story', label: 'Plural · Story', icon: '✉️', mode: 'story', x: 94, y: 20 },
+    { id: 'plural-story', label: 'Plural · Story', icon: '✉️', mode: 'story', storyId: 'liebe-lisa', x: 94, y: 20 },
     { id: 'cases-produce', label: 'Cases · Produce', icon: '✍️', mode: 'case-single', x: 32, y: 72 },
     { id: 'cases-detect', label: 'Cases · Detect', icon: '🔍', mode: 'case-detect', x: 74, y: 96 },
+    { id: 'dativ-story', label: 'Dativ · Story', icon: '✉️', mode: 'story', storyId: 'familientag', x: 8, y: 92 },
 ];
 
 export const MAP_EDGES: MapEdge[] = [
@@ -54,6 +58,7 @@ export const MAP_EDGES: MapEdge[] = [
     { from: 'plural', to: 'cases-produce', kind: 'main' },
     { from: 'plural', to: 'plural-story', kind: 'fork' },
     { from: 'cases-produce', to: 'cases-detect', kind: 'fork' },
+    { from: 'cases-produce', to: 'dativ-story', kind: 'fork' },
 ];
 
 /** Look up a node by id (renderer + App use this to resolve edge endpoints). */

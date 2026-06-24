@@ -5,7 +5,7 @@ import { CaseFilterToggle } from '../components/CaseFilterToggle';
 import type { GameMode, CaseFilter } from '../hooks/useGameState';
 
 interface MapScreenProps {
-    onStart: (mode: GameMode, caseFilter: CaseFilter) => void;
+    onStart: (mode: GameMode, caseFilter: CaseFilter, storyId?: string) => void;
 }
 
 const isCaseNode = (node: MapNode) =>
@@ -67,7 +67,7 @@ export function MapScreen({ onStart }: MapScreenProps) {
     const handleStart = () => {
         if (!selected) return;
         const filter = selected.caseFilter ?? caseFilter;
-        onStart(selected.mode, filter);
+        onStart(selected.mode, filter, selected.storyId);
     };
 
     return (
