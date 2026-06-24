@@ -40,6 +40,9 @@ export interface PracticeRound {
     tipp: string;
     /** Help revealable before answering — never the solution. */
     hints: Hint[];
+    /** A substring of `promptText` to visually emphasise (detect mode marks the
+     *  phrase whose case the learner must identify). Absent in other modes. */
+    highlight?: string;
 }
 
 /** A mode is a pure function from a noun pool to the rounds to play. */

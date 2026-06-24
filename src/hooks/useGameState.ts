@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateItems } from '../data';
 import { hasRule } from '../rules';
 import { generateArticleRounds } from '../articles';
-import { generateRounds, type CaseFilter } from '../sentences';
+import { generateRounds, generateDetectRounds, type CaseFilter } from '../sentences';
 import { generatePluralRounds } from '../plurals';
 import { HINT_BUDGET, HINT_KINDS, type Hint, type HintKind } from '../hints';
 import type { PracticeRound, RoundGenerator } from '../round';
@@ -11,7 +11,7 @@ import { playWord, stopSpeech } from '../utils/speech';
 const HINT_FREEZE_MS = 3000; // how long the timer freezes while a hint shows
 
 export type FilterType = 'all' | 'by-rule' | 'without-rule' | string;
-export type GameMode = 'article' | 'case-single' | 'plural';
+export type GameMode = 'article' | 'case-single' | 'case-detect' | 'plural';
 export type { CaseFilter } from '../sentences';
 
 /** The presentable unit the game loop consumes, identical across modes. */
@@ -21,6 +21,8 @@ export interface Round {
     displayText: string;
     /** Secondary line under the word (translation hint), if any. */
     hint?: string;
+    /** A substring of `displayText` to visually emphasise (detect mode). */
+    highlight?: string;
     answer: string;
     options: string[];
     /** Explanation shown after answering. */
@@ -47,6 +49,7 @@ const BONUS_CAP = 2000;         // max bonus you can recover per word
 const GENERATORS: Record<GameMode, RoundGenerator> = {
     'article': generateArticleRounds,
     'case-single': generateRounds,   // caseFilter applied in buildQueue
+    'case-detect': generateDetectRounds, // caseFilter applied in buildQueue
     'plural': generatePluralRounds,
 };
 
@@ -61,6 +64,7 @@ function toRound(r: PracticeRound): Round {
         // Translation line: only meaningful for the bare-word article prompt;
         // the sentence/singular prompts already show the noun in context.
         hint: r.promptText === r.item.word ? r.item.hint : undefined,
+        highlight: r.highlight,
         answer: r.answer,
         options: r.options,
         tipp: r.tipp,
@@ -87,10 +91,16 @@ function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter):
         items = items.filter(i => i.category === filter);
     }
 
-    // Case mode narrows by case (study only Dativ, etc.); other modes ignore it.
-    const rounds = mode === 'case-single'
-        ? generateRounds(items, caseFilter)
-        : GENERATORS[mode](items);
+    // Case modes (produce + detect) narrow by case (study only Dativ, etc.);
+    // other modes ignore it.
+    let rounds: PracticeRound[];
+    if (mode === 'case-single') {
+        rounds = generateRounds(items, caseFilter);
+    } else if (mode === 'case-detect') {
+        rounds = generateDetectRounds(items, caseFilter);
+    } else {
+        rounds = GENERATORS[mode](items);
+    }
     return rounds.map(toRound);
 }
 

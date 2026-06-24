@@ -2,6 +2,7 @@ import { FilterDropdown } from '../components/FilterDropdown';
 import { Scoreboard } from '../components/Scoreboard';
 import { WordCard } from '../components/WordCard';
 import { HintBar } from '../components/HintButton';
+import { PlaceBanner } from './PlaceBanner';
 import type { FilterType, GameMode, Round } from '../hooks/useGameState';
 import type { Hint, HintKind } from '../hints';
 
@@ -44,12 +45,12 @@ export function GameScreen(props: GameScreenProps) {
     const { round, isAwaitingNext } = props;
 
     return (
-        <main className="game-screen">
+        <main className="game-screen pixel">
             <div className="game-header">
                 <button className="menu-btn" onClick={props.onMenu} aria-label="Back to menu">
                     ← Menu
                 </button>
-                <h2 className="app-title">Dreiartikel</h2>
+                <PlaceBanner mode={props.mode} />
                 <span className="game-header-spacer" aria-hidden="true">← Menu</span>
             </div>
 

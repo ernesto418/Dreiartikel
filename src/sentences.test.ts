@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
     TEMPLATES,
     buildRound,
+    buildDetectRound,
+    generateDetectRounds,
+    DETECT_OPTIONS,
     matches,
     isEligible,
     pickRound,
@@ -210,6 +213,49 @@ describe('pickRound / generateRounds', () => {
     it('generateRounds covers each eligible noun once', () => {
         const rounds = generateRounds([HUND, FRAU, KIND]);
         expect(rounds.length).toBe(3);
+    });
+});
+
+describe('detect mode (name the case — Hueber 1.4)', () => {
+    it('shows a COMPLETE sentence with the article rendered, not blanked', () => {
+        const r = buildDetectRound(HUND, byId('akk-sehen'));
+        expect(r.promptText).toBe('Ich sehe den Hund.');   // article present
+        expect(r.promptText).not.toContain('___');
+    });
+
+    it('highlights the phrase whose case is asked, and it occurs in the prompt', () => {
+        const r = buildDetectRound(FRAU, byId('dat-helfen'));
+        expect(r.highlight).toBe('der Frau');               // dative of die Frau
+        expect(r.promptText).toContain(r.highlight!);
+    });
+
+    it('answers with the case label, from the fixed Nom/Akk/Dat option set', () => {
+        expect(buildDetectRound(HUND, byId('akk-sehen')).answer).toBe('Akkusativ');
+        expect(buildDetectRound(FRAU, byId('dat-helfen')).answer).toBe('Dativ');
+        expect(buildDetectRound(HUND, byId('nom-gross')).answer).toBe('Nominativ');
+    });
+
+    it('options are exactly Nominativ/Akkusativ/Dativ in fixed order', () => {
+        const r = buildDetectRound(HUND, byId('akk-sehen'));
+        expect(r.options).toEqual(DETECT_OPTIONS);
+        expect(r.options).toEqual(['Nominativ', 'Akkusativ', 'Dativ']);
+        expect(r.options).toContain(r.answer);
+    });
+
+    it('reuses the Wer?/Wen?/Wem? hints and never leaks the case label early', () => {
+        const r = buildDetectRound(FRAU, byId('dat-helfen'));
+        const rule = r.hints.find(h => h.kind === 'rule')!.text;
+        expect(rule).toContain('Wem?');                     // the detection method
+    });
+
+    it('generateDetectRounds covers eligible nouns and honours the case filter', () => {
+        const pool = [HUND, FRAU, KIND, PARK];
+        const dat = generateDetectRounds(pool, 'dat');
+        expect(dat.length).toBeGreaterThan(0);
+        for (const r of dat) {
+            expect(r.answer).toBe('Dativ');
+            expect(r.options).toEqual(DETECT_OPTIONS);
+        }
     });
 });
 

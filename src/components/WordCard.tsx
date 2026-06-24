@@ -1,6 +1,22 @@
 import { glyphForOptionSlot } from '../hooks/useInput';
 import type { GameMode, Round } from '../hooks/useGameState';
 
+/** Render the prompt, wrapping the highlighted phrase (detect mode) in a <mark>.
+ *  Without a highlight the text renders as-is. Splits on the first match only;
+ *  the target phrase appears once per sentence. */
+function renderDisplay(text: string, highlight?: string) {
+    if (!highlight) return text;
+    const i = text.indexOf(highlight);
+    if (i === -1) return text;
+    return (
+        <>
+            {text.slice(0, i)}
+            <mark className="case-target">{highlight}</mark>
+            {text.slice(i + highlight.length)}
+        </>
+    );
+}
+
 interface WordCardProps {
     round: Round;
     mode: GameMode;
@@ -32,8 +48,8 @@ export function WordCard({
         <div className="word-card">
 
             <div className="word-container">
-                <h1 className={`active-word ${mode === 'case-single' ? 'sentence' : ''}`}>
-                    {round.displayText}
+                <h1 className={`active-word ${mode === 'case-single' || mode === 'case-detect' ? 'sentence' : ''}`}>
+                    {renderDisplay(round.displayText, round.highlight)}
                 </h1>
                 <button className="replay-btn" onClick={onReplay} aria-label="Replay Audio" title="Replay Audio">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

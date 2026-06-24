@@ -144,6 +144,56 @@ export function buildRound(item: PracticeItem, template: SentenceTemplate): Case
     return { item, template, promptText, spokenText, speakOnShowSafe: false, answer, options, tipp, hints };
 }
 
+// ── Detect mode (Hueber 1.4) ─────────────────────────────────────────────
+// The inverse exercise: instead of producing the article for a known case, the
+// learner is shown a COMPLETE correct sentence with one phrase highlighted and
+// must identify its case (Nominativ/Akkusativ/Dativ) using the Wer?/Wen?/Wem?
+// question test. The article is already on screen — it's the clue, not the gap.
+
+/** Fixed Nom/Akk/Dat option order — kept stable so detect mode has the same
+ *  muscle-memory positions as article mode (← Nominativ, ↓ Akkusativ, → Dativ). */
+export const DETECT_OPTIONS: string[] = [CASE_LABELS.nom, CASE_LABELS.akk, CASE_LABELS.dat];
+
+/** Build a detect round: a finished sentence with the target phrase highlighted,
+ *  the learner picks which case that phrase is in. Reuses the same templates and
+ *  the Wer?/Wen?/Wem? hints as produce mode — only the question is inverted. */
+export function buildDetectRound(item: PracticeItem, template: SentenceTemplate): CaseRound {
+    const article = articleFor(item.gender, template.case, 'sg');
+    const noun = declineNoun(item.word, !!item.isWeakMasculine, template.case, 'sg');
+    const phrase = `${article} ${noun}`;                         // "der Frau", "den Hund"
+    const sentence = template.frame.replace('___', phrase);     // "Ich helfe der Frau."
+
+    const answer = CASE_LABELS[template.case];                  // "Dativ"
+    const hints = buildHints(item, template);
+    const tipp = buildTipp(item, template, article);
+
+    // The full sentence is shown (article is the clue), so speaking it is safe.
+    return {
+        item, template,
+        promptText: sentence,
+        spokenText: sentence,
+        speakOnShowSafe: true,
+        answer,
+        options: DETECT_OPTIONS,                                // fixed positions
+        tipp,
+        hints,
+        highlight: phrase,                                      // what to mark on screen
+    };
+}
+
+/** Build a shuffled list of detect rounds, one per eligible noun. `caseFilter`
+ *  narrows to a single case, same as produce mode. */
+export function generateDetectRounds(pool: PracticeItem[], caseFilter: CaseFilter = 'all'): CaseRound[] {
+    const templates = templatesForCase(caseFilter);
+    const eligible = shuffle(pool.filter(isEligible));
+    return eligible
+        .map(item => {
+            const usable = templates.filter(t => matches(item, t));
+            return usable.length ? buildDetectRound(item, randomOf(usable)) : null;
+        })
+        .filter((r): r is CaseRound => r !== null);
+}
+
 /** Is this noun usable in sentence mode at all? (Phase 1: singular only.) */
 export function isEligible(item: PracticeItem): boolean {
     return !item.pluralOnly;

@@ -3,18 +3,21 @@ import { useGameState, type FilterType, type GameMode, type CaseFilter } from '.
 import { useInput } from './hooks/useInput';
 import { getCategories } from './data';
 import { getHypeLevel, fireConfetti } from './utils/confetti';
-import { StartScreen } from './screens/StartScreen';
+import { MapScreen } from './screens/MapScreen';
 import { GameScreen } from './screens/GameScreen';
 import { GameOverScreen } from './screens/GameOverScreen';
 
 const thematicCategories = getCategories();
 
+type Screen = 'map' | 'game' | 'over';
+
 function App() {
-  const [started, setStarted] = useState(false);
+  const [screen, setScreen] = useState<Screen>('map');
   const [filter, setFilter] = useState<FilterType>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const [mode, setMode] = useState<GameMode>('article');
   const [caseFilter, setCaseFilter] = useState<CaseFilter>('all');
+  const started = screen === 'game';
 
   const {
     currentWord,
@@ -68,24 +71,25 @@ function App() {
   });
 
   // ─── Routing ───────────────────────────────────────────────────────
-  if (!started) {
+  if (screen === 'map') {
     return (
-      <StartScreen
-        mode={mode}
-        onModeChange={setMode}
-        caseFilter={caseFilter}
-        onCaseFilterChange={setCaseFilter}
-        onStart={() => setStarted(true)}
+      <MapScreen
+        onStart={(m, cf) => {
+          setMode(m);
+          setCaseFilter(cf);
+          setScreen('game');
+        }}
       />
     );
   }
 
+  // A finished queue (no current round) means the run is over.
   if (!currentWord) {
     return (
       <GameOverScreen
         score={score}
         bestStreak={bestStreak}
-        onPlayAgain={() => window.location.reload()}
+        onPlayAgain={() => setScreen('map')}
       />
     );
   }
@@ -118,7 +122,7 @@ function App() {
       onReplay={onReplay}
       onKnowWhy={knowWhy}
       onNext={onNext}
-      onMenu={() => setStarted(false)}
+      onMenu={() => setScreen('map')}
     />
   );
 }
