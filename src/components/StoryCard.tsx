@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { glyphForOptionSlot } from '../hooks/useInput';
 import type { Round } from '../hooks/useGameState';
 import type { StorySegmentView } from '../stories';
@@ -17,9 +18,11 @@ interface StoryCardProps {
     onNext: (grantBonus?: boolean) => void;
 }
 
-/** The cumulative-letter view: the whole story is shown, with answered blanks
- *  filled (dimmed, green/red by outcome), the current blank live, and lines
- *  after the current sentence hidden. The 3-option selector + feedback sit below.
+/** The karaoke-letter view: the WHOLE story is always shown — read lines recede,
+ *  the active sentence is full-strength, and not-yet-reached lines are faded but
+ *  readable (future blanks stay as `___`, so nothing leaks). The view snaps the
+ *  active line into position as you advance, like lyrics following a song. The
+ *  3-option selector + feedback sit below.
  *
  *  What's stored vs derived: `storyResults` (per-blank outcomes) and the current
  *  blank index are STORED in the loop; the rendered letter is fully DERIVED from
@@ -38,11 +41,17 @@ export function StoryCard({
     onNext,
 }: StoryCardProps) {
     const ctx = round.storyContext;
+    const currentLineRef = useRef<HTMLParagraphElement>(null);
+
+    // Snap the active line into view whenever it changes (karaoke scroll).
+    const currentLineIndex = ctx ? lineIndexOfBlank(ctx.lines, ctx.blankIndex) : -1;
+    useEffect(() => {
+        currentLineRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    }, [currentLineIndex]);
+
     if (!ctx) return null;
 
     const currentBlank = ctx.blankIndex;
-    // Reveal the line containing the current blank and everything before it.
-    const lastVisibleLine = lineIndexOfBlank(ctx.lines, currentBlank);
 
     return (
         <div className="story-card">
@@ -56,12 +65,14 @@ export function StoryCard({
 
             <div className="story-text">
                 {ctx.lines.map((line, li) => {
-                    if (li > lastVisibleLine) return null; // future — hidden
-                    const isCurrentLine = li === lastVisibleLine;
+                    // The whole story is shown; lines recede / brighten / fade by
+                    // position relative to the active line.
+                    const tier = li < currentLineIndex ? 'done' : li === currentLineIndex ? 'current' : 'future';
                     return (
                         <p
                             key={li}
-                            className={`story-line ${isCurrentLine ? 'current' : 'done'}`}
+                            ref={li === currentLineIndex ? currentLineRef : undefined}
+                            className={`story-line ${tier}`}
                         >
                             {line.map((seg, si) => renderSegment(seg, si, currentBlank, storyResults))}
                         </p>

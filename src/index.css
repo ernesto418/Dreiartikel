@@ -687,14 +687,22 @@ mark.case-target {
   font-size: 0.6rem;
   line-height: 1.9;
   color: var(--pix-ink);
+  /* Karaoke window: the whole story is rendered; this scrollable viewport keeps
+     a few lines on screen and snaps the active line into view as you advance. */
+  max-height: 9.5rem;
+  overflow-y: auto;
+  scroll-behavior: auto; /* snap, not glide (also honours reduced-motion) */
 }
 
 .story-line {
   margin: 0 0 0.6rem;
+  transition: opacity 0.15s ease;
 }
-/* already-read lines recede; the active sentence is full-strength */
-.story-line.done { opacity: 0.55; }
+/* Three tiers, like lyrics: read lines recede, the active sentence is
+   full-strength, lines not yet reached are faded but still readable. */
+.story-line.done { opacity: 0.5; }
 .story-line.current { opacity: 1; }
+.story-line.future { opacity: 0.32; }
 
 /* inline blanks */
 .story-blank {
