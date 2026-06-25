@@ -156,4 +156,21 @@ describe('prompt shows the noun after the blank (genus/kasus)', () => {
         expect(chapterToStory(CH1_GENUS).mode).toBe('genus');
         expect(chapterToStory(CH1_DATIV).mode).toBe('kasus-dat');
     });
+
+    it('two blanks on one line never re-read the first blank\'s clause', () => {
+        // Regression: "die Katze schläft, und ___ Buch ist schon gepackt." has two
+        // blanks. The connecting text "…schläft, und" is spoken once (as the first
+        // blank's post-answer read); the SECOND blank must be silent on show, not
+        // replay the whole line.
+        const rounds = buildChapterRounds(CH1_GENUS, pool);
+        const katze = rounds.find(r => r.item.word === 'Katze')!;
+        const buch = rounds.find(r => r.item.word === 'Buch')!;
+        // First blank reads its own clause up to the second blank.
+        expect(katze.spokenText).toContain('Katze schläft');
+        // Second blank is silent on show (no clause replay), and its post-answer
+        // read is only its OWN clause — never "Katze schläft".
+        expect(buch.speakOnShow).toBe('');
+        expect(buch.spokenText).not.toContain('Katze');
+        expect(buch.spokenText).toContain('Buch ist schon gepackt');
+    });
 });

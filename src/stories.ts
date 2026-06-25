@@ -228,16 +228,19 @@ function buildView(
     return { lines, resolved };
 }
 
-/** The text shown/read up to (and excluding) the blank with global index
- *  `globalBlank` — the "lead-in". Earlier blanks on the same line are already
- *  answered, so they're filled with their resolved answer (not left as a gap).
- *  Operates on the view so it has those answers. */
+/** The text shown/read up to (and excluding) the blank `globalBlank` — the
+ *  "lead-in" spoken on show. If an EARLIER blank sits on the same line, the
+ *  connecting text ("…schläft, und ") was already spoken as the tail of THAT
+ *  blank's post-answer read (continuationAfterBlank reads up to the next blank).
+ *  Re-reading it on show would repeat it, so a blank that follows another on its
+ *  line has an EMPTY lead-in. Only the first blank of a line carries a lead-in —
+ *  the text from the line start up to it. */
 function leadInBeforeBlank(viewLine: StorySegmentView[], globalBlank: number): string {
     let out = '';
     for (const seg of viewLine) {
         if (seg.kind === 'text') { out += seg.text; continue; }
         if (seg.blankIndex === globalBlank) break;     // reached our blank
-        out += seg.answer ?? '';                       // an earlier blank: fill it
+        return '';                                     // an earlier blank → no lead-in
     }
     return out.replace(/\s+/g, ' ').trim();
 }

@@ -391,12 +391,23 @@ describe('story mode — continuous audio', () => {
         }
     });
 
-    it('a second blank on a line shows the first blank filled in its lead-in', () => {
-        // The "Freundinnen" blank is the 2nd on its line; its lead-in must contain
-        // the already-answered first blank word ("Kinder"), not a gap.
+    it('a second blank on a line does NOT re-read the first blank\'s clause', () => {
+        // The "Freundinnen" blank is the 2nd on its line. The connecting text
+        // ("…mit anderen Kindern und seinen ___") was already spoken as the tail
+        // of the FIRST blank's post-answer read, so the second blank's on-show
+        // audio must be empty — re-reading it would repeat the clause (the bug a
+        // two-blank line exposed). The visible context still shows the first blank
+        // filled via the storyContext.lines view (the karaoke card), not the audio.
         const r = rounds.find(x => x.answer === 'Freundinnen');
         expect(r, 'expected a Freundinnen blank').toBeDefined();
-        const lead = r!.promptText.replace(/\s*_+\s*$/, '');
-        expect(lead).toContain('Kinder');
+        expect(r!.speakOnShow, 'second-on-line blank should be silent on show').toBe('');
+
+        // The cumulative view for this round shows the earlier blank's answer
+        // (so the reader sees "Kindern" filled, not a gap).
+        const ctx = r!.storyContext!;
+        const filledWords = ctx.lines.flat()
+            .filter(s => s.kind === 'blank' && (s.blankIndex ?? 0) < ctx.blankIndex)
+            .map(s => s.answer);
+        expect(filledWords).toContain('Kinder');
     });
 });
