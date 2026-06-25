@@ -225,9 +225,11 @@ function parseLine(
                     // genus / kasus: blank the ARTICLE; noun rides as text after.
                     pending += tok.before;
                     flush();
-                    const blank: Segment = decision.trigger
-                        ? { kind: 'blank', word: match.item.word, trigger: decision.trigger }
-                        : { kind: 'blank', word: match.item.word };
+                    const blank: Segment = { kind: 'blank', word: match.item.word };
+                    if (decision.trigger) blank.trigger = decision.trigger;
+                    // Kasus blanks carry the surface article (the answer + the case
+                    // cue); genus reads its own nom-sg article from the item.
+                    if (topic === 'kasus-dat' || topic === 'kasus-akk') blank.article = tok.word.toLowerCase();
                     out.push(blank);
                     // The noun (as the author wrote it — already declined) + its
                     // leading space become the following text segment.

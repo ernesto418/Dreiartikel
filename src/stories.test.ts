@@ -299,34 +299,33 @@ describe('story rounds never leak the answer', () => {
         return new RegExp(`(^|\\W)${escaped}(\\W|$)`).test(haystack);
     }
 
-    it('promptText shows a ___ blank, not pre-filled with the answer', () => {
+    it('promptText marks a ___ blank, not pre-filled with the answer', () => {
         const blanks = allBlankWords();
         for (let i = 0; i < rounds.length; i++) {
             const r = rounds[i];
             const mode = modeForStory(blanks[i].storyId);
             expect(r.promptText, `round ${i} prompt should mark the blank`).toContain('___');
-            // The blank must be the trailing slot, never pre-filled with the answer.
+            // The slot may now sit MID-sentence — the same-line text after the
+            // blank (e.g. the noun in "Ich sehe ___ Hund") is shown for context.
+            // The invariant isn't "ends with ___" any more; it's that the slot is
+            // never pre-filled with the answer.
+            const [beforeSlot = '', afterSlot = ''] = r.promptText.split(/_+/);
+            const wordBefore = beforeSlot.trim().split(/\s+/).pop() ?? '';
+            const wordAfter = afterSlot.trim().split(/\s+/)[0] ?? '';
             expect(
-                r.promptText.trimEnd().endsWith('___'),
-                `round ${i} prompt should END with the ___ slot: ${r.promptText}`,
-            ).toBe(true);
+                wordBefore,
+                `round ${i} slot should not be pre-filled (before) with "${r.answer}": ${r.promptText}`,
+            ).not.toBe(r.answer);
+            expect(
+                wordAfter,
+                `round ${i} slot should not be pre-filled (after) with "${r.answer}": ${r.promptText}`,
+            ).not.toBe(r.answer);
 
-            if (mode === 'dativ') {
-                // A Dativ answer like 'der'/'dem' is a normal German word that
-                // legitimately appears in the surrounding prose ("Nach dem Essen"),
-                // so we DON'T forbid it from the lead-in. The real invariant is
-                // that the slot itself isn't pre-filled — i.e. the prompt ends at
-                // "___", with no article wedged into the blank position. Guard
-                // against the article immediately preceding the slot.
-                const beforeSlot = r.promptText.replace(/\s*_+\s*$/, '');
-                const lastWord = beforeSlot.split(/\s+/).pop() ?? '';
-                expect(
-                    lastWord,
-                    `round ${i} prompt should not pre-fill the slot with "${r.answer}": ${r.promptText}`,
-                ).not.toBe(r.answer);
-            } else {
+            if (mode !== 'dativ') {
                 // Plural answers are distinctive forms; they must never appear in
-                // the prompt at all (a true leak of the thing being asked).
+                // the prompt at all (a true leak of the thing being asked). Dativ
+                // answers (der/dem) are ordinary words that legitimately occur in
+                // the surrounding prose, so they're exempt from the word-leak check.
                 expect(
                     containsWord(r.promptText, r.answer),
                     `round ${i} prompt leaks "${r.answer}": ${r.promptText}`,

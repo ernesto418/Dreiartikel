@@ -10,7 +10,8 @@
 
 import { generateItems, type PracticeItem } from './data';
 import { buildPluralRound } from './plurals';
-import { articleFor, optionsForCase, declineNoun, CASE_LABELS, type Case } from './declension';
+import { buildArticleRound } from './articles';
+import { articleFor, optionsForCase, declineNoun, caseForSurface, CASE_LABELS, type Case } from './declension';
 import { genderHint, type Hint } from './hints';
 import { shuffle } from './utils/random';
 import type { PracticeRound } from './round';
@@ -27,10 +28,19 @@ export type Segment =
     | {
         kind: 'blank';
         word: string;
-        /** Dativ stories only: why this blank is Dativ, phrased for the Tipp
-         *  ("the preposition 'bei'"). Ignored by plural stories. */
+        /** Case stories/chapters only: why this blank is in its case, phrased for
+         *  the Tipp ("the preposition 'bei'"). Ignored by plural stories. */
         trigger?: string;
+        /** Chapter case blanks only: the surface definite article the author
+         *  wrote (der/die/das/dem/den). It IS the correct answer, and the case is
+         *  read off it. Absent in plural/genus blanks and hand-authored stories. */
+        article?: string;
     };
+
+/** The grammar a story or chapter drills. The first two power the hand-authored
+ *  letters; the rest power prose-parsed chapters (the answer is read off the
+ *  surface article, so they share one chapter-case resolver). */
+export type StoryMode = 'plural' | 'dativ' | 'genus' | 'kasus-dat' | 'kasus-akk';
 
 /** A story is an ordered list of lines; each line is a list of segments. Lines
  *  are the reading unit (we read/reveal line by line). */
@@ -38,8 +48,8 @@ export interface Story {
     id: string;
     title: string;
     /** Which grammar the blanks drill — selects how each blank's answer/options
-     *  are built (plural form vs case article). */
-    mode: 'plural' | 'dativ';
+     *  are built (plural form vs gender vs case article). */
+    mode: StoryMode;
     lines: Segment[][];
 }
 
@@ -157,6 +167,40 @@ function resolveDativBlank(item: PracticeItem, trigger: string): ResolvedBlank {
     return { item, answer, options, nounAfter: noun, tipp, hints };
 }
 
+// ── Chapter resolvers (article blanked; noun stays in the authored prose) ────
+// These power chapters parsed from prose. Unlike the hand-authored stories above,
+// a chapter writes the (already-declined) noun directly in its text, so these set
+// nounAfter:'' — the noun must NOT be re-injected or it would render twice.
+
+/** Genus blank: pick the Nominativ-singular article (der/die/das) for a bare
+ *  noun. Options stay in FIXED der/die/das order — never shuffled — to preserve
+ *  the article-mode muscle memory (CLAUDE.md). */
+export function resolveGenusBlank(item: PracticeItem): ResolvedBlank {
+    const base = buildArticleRound(item);   // answer = nom-sg article, fixed options
+    return { item, answer: base.answer, options: base.options, nounAfter: '', tipp: base.tipp, hints: base.hints };
+}
+
+/** Kasus blank inside a chapter: the answer is the surface article the author
+ *  wrote (already case-correct), with decoys from optionsForCase. The noun is
+ *  visible in the prose, so nounAfter:''. `caseName` is read off the surface
+ *  article by the parser; `trigger` (when present) explains why. */
+export function resolveChapterCaseBlank(
+    item: PracticeItem,
+    answer: string,
+    caseName: Case,
+    trigger?: string,
+): ResolvedBlank {
+    const options = shuffle(optionsForCase(caseName, 'sg'));
+    const why = trigger ?? `this ${CASE_LABELS[caseName]} context`;
+    const question = caseName === 'dat' ? 'wem?' : caseName === 'akk' ? 'wen?' : 'wer?';
+    const tipp = `${why} takes the ${CASE_LABELS[caseName]}: "${answer} ${item.word}".`;
+    const hints: Hint[] = [
+        { kind: 'rule', text: `${why} forces the ${CASE_LABELS[caseName]} — ask "${question}".` },
+        genderHint(item.word, item.gender),
+    ];
+    return { item, answer, options, nounAfter: '', tipp, hints };
+}
+
 // ── Generation: each blank → one PracticeRound, with narrative context ───────
 
 /** Flatten a story's lines into the view shared across its rounds, numbering
@@ -165,7 +209,7 @@ function resolveDativBlank(item: PracticeItem, trigger: string): ResolvedBlank {
  *  blank, so the cumulative letter + audio render "bei dem Studio" naturally. */
 function buildView(
     story: Story,
-    resolve: (word: string) => ResolvedBlank | null,
+    resolve: (seg: Extract<Segment, { kind: 'blank' }>) => ResolvedBlank | null,
 ): { lines: StorySegmentView[][]; resolved: (ResolvedBlank | null)[] } {
     const resolved: (ResolvedBlank | null)[] = [];
     const lines: StorySegmentView[][] = story.lines.map(line => {
@@ -173,7 +217,7 @@ function buildView(
         for (const seg of line) {
             if (seg.kind === 'text') { out.push({ kind: 'text', text: seg.text }); continue; }
             const blankIndex = resolved.length;
-            const rb = resolve(seg.word);
+            const rb = resolve(seg);
             resolved.push(rb);
             out.push({ kind: 'blank', text: '', blankIndex, answer: rb ? rb.answer : seg.word });
             // Dativ: show the declined noun right after the article blank.
@@ -196,6 +240,25 @@ function leadInBeforeBlank(viewLine: StorySegmentView[], globalBlank: number): s
         out += seg.answer ?? '';                       // an earlier blank: fill it
     }
     return out.replace(/\s+/g, ' ').trim();
+}
+
+/** The same-line text that FOLLOWS the blank, up to the next blank or end of
+ *  line — e.g. the noun in "Ich sehe ___ Hund" (genus/kasus, where the article is
+ *  blanked and the noun rides on as text). Lets the prompt show the noun the
+ *  learner is judging. Stops at the next blank so it never reveals a later answer.
+ *  Plural blanks have no following noun, so this is just trailing punctuation. */
+function trailingTextAfterBlank(viewLine: StorySegmentView[], globalBlank: number): string {
+    let out = '';
+    let passed = false;
+    for (const seg of viewLine) {
+        if (seg.kind === 'blank') {
+            if (seg.blankIndex === globalBlank) { passed = true; continue; }
+            if (passed) break;                  // next blank — stop before it
+            continue;
+        }
+        if (passed) out += seg.text;            // text after our blank
+    }
+    return out.replace(/\s+/g, ' ').trimEnd();
 }
 
 /** The continuous read spoken AFTER a blank is answered: the rest of the current
@@ -250,23 +313,29 @@ function viewLineOfBlank(lines: StorySegmentView[][], blankIndex: number): numbe
 export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRound[] {
     const byWord = new Map(pool.map(i => [i.word, i]));
 
-    // The trigger for a Dativ blank rides on its segment; collect them in order.
-    const triggers: (string | undefined)[] = [];
-    for (const line of story.lines) {
-        for (const seg of line) {
-            if (seg.kind === 'blank') triggers.push(seg.trigger);
-        }
-    }
-
-    let blankOrdinal = 0;
-    const resolve = (word: string): ResolvedBlank | null => {
-        const item = byWord.get(word);
-        const trigger = triggers[blankOrdinal] ?? 'this preposition';
-        blankOrdinal++;
+    const resolve = (seg: Extract<Segment, { kind: 'blank' }>): ResolvedBlank | null => {
+        const item = byWord.get(seg.word);
         if (!item) return null;               // missing word — test catches it
-        return story.mode === 'dativ'
-            ? resolveDativBlank(item, trigger)
-            : resolvePluralBlank(item);
+        switch (story.mode) {
+            case 'plural':
+                return resolvePluralBlank(item);
+            case 'dativ':
+                return resolveDativBlank(item, seg.trigger ?? 'this preposition');
+            case 'genus':
+                return resolveGenusBlank(item);
+            case 'kasus-dat':
+            case 'kasus-akk': {
+                // The surface article the author wrote IS the answer, and the case
+                // is read off it (number-aware via the item's plural detection is
+                // done in the parser, which set seg.article). Fall back to deriving
+                // from gender if a chapter somehow omitted the article.
+                const article = seg.article ?? articleFor(item.gender, story.mode === 'kasus-dat' ? 'dat' : 'akk', 'sg');
+                const inferred = caseForSurface(item.gender, article);
+                const caseName: Case = (Array.isArray(inferred) ? inferred[0] : inferred)
+                    ?? (story.mode === 'kasus-dat' ? 'dat' : 'akk');
+                return resolveChapterCaseBlank(item, article, caseName, seg.trigger);
+            }
+        }
     };
 
     const { lines, resolved } = buildView(story, resolve);
@@ -279,7 +348,8 @@ export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRo
 
         const li = viewLineOfBlank(lines, bi);
         const lead = leadInBeforeBlank(lines[li], bi);
-        const promptText = `${lead} ___`.trim();
+        const trail = trailingTextAfterBlank(lines[li], bi);   // e.g. " Hund." for genus/kasus
+        const promptText = `${lead} ___${trail}`.replace(/\s+/g, ' ').trim();
 
         const context: StoryContext = {
             storyId: story.id,

@@ -65,9 +65,15 @@ const GENERATORS: Record<GameMode, RoundGenerator> = {
  *  otherwise speak the prompt and reinforce with the full line after answering. */
 function toRound(r: PracticeRound): Round {
     // Story rounds speak the sentence read aloud, not the literal "lead-in ___":
-    // on show, the words up to the blank; on answer, the completed sentence.
+    // on show, the words around the blank with the blank itself silent (the
+    // article is never spoken before answering); on answer, the completed
+    // sentence. The blank may sit MID-sentence ("Ich sehe ___ Hund" — genus/kasus
+    // keep the noun after the blank), so we replace the "___" token with a short
+    // pause rather than stripping to the end, keeping the noun audible.
     const story = r.storyContext;
-    const storyLeadIn = story ? r.promptText.replace(/\s*_+\s*$/, '').trim() : '';
+    const storyLeadIn = story
+        ? r.promptText.replace(/_+/g, ' … ').replace(/\s+/g, ' ').trim()
+        : '';
 
     return {
         id: r.item.id,
