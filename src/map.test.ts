@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MAP_NODES, MAP_EDGES, nodeById } from './map';
+import { MAIN_QUEST } from './chapters';
 import type { GameMode } from './hooks/useGameState';
 
 // These guards protect future iterations: when you append a node or fork to the
@@ -75,8 +76,9 @@ describe('iteration 1 graph', () => {
         );
     });
 
-    it('every node is reachable from "articles" via edges', () => {
-        const reachable = new Set<string>(['articles']);
+    it('every node is reachable from the first node via edges', () => {
+        // The graph root is the first node (the main quest's opening chapter).
+        const reachable = new Set<string>([MAP_NODES[0].id]);
         // Fixed-point over the (small) edge set.
         let grew = true;
         while (grew) {
@@ -104,5 +106,30 @@ describe('iteration 1 graph', () => {
         expect(storyEdge).toBeDefined();
         expect(storyEdge!.from).toBe('plural');
         expect(storyEdge!.kind).toBe('fork');
+    });
+
+    it('every chapter node points at a real MAIN_QUEST chapter', () => {
+        const questIds = new Set(MAIN_QUEST.map(c => c.id));
+        const chapterNodes = MAP_NODES.filter(n => n.chapterId);
+        expect(chapterNodes.length).toBeGreaterThan(0);
+        for (const n of chapterNodes) {
+            expect(n.mode, `${n.id} must ride mode:story`).toBe('story');
+            expect(questIds.has(n.chapterId!), `chapterId "${n.chapterId}" must exist`).toBe(true);
+        }
+    });
+
+    it('the main-quest road links the chapters in TOC order', () => {
+        const mainEdges = MAP_EDGES.filter(e => e.kind === 'main');
+        const questOrder = MAIN_QUEST.map(c => c.id);
+        const nodeForChapter = (cid: string) => MAP_NODES.find(n => n.chapterId === cid)!.id;
+        // Each consecutive chapter pair has a 'main' edge between their nodes.
+        for (let i = 0; i < questOrder.length - 1; i++) {
+            const a = nodeForChapter(questOrder[i]);
+            const b = nodeForChapter(questOrder[i + 1]);
+            expect(
+                mainEdges.some(e => e.from === a && e.to === b),
+                `main road should link ${a} → ${b}`,
+            ).toBe(true);
+        }
     });
 });

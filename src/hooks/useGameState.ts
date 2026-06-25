@@ -5,6 +5,7 @@ import { generateArticleRounds } from '../articles';
 import { generateRounds, generateDetectRounds, type CaseFilter } from '../sentences';
 import { generatePluralRounds } from '../plurals';
 import { generateStoryRounds, generateStoryRoundsFor } from '../stories';
+import { generateChapterRoundsFor } from '../chapters';
 import type { StoryContext } from '../stories';
 import { HINT_BUDGET, HINT_KINDS, type Hint, type HintKind } from '../hints';
 import type { PracticeRound, RoundGenerator } from '../round';
@@ -99,7 +100,7 @@ function toRound(r: PracticeRound): Round {
     };
 }
 
-function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter, storyId?: string): Round[] {
+function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter, storyId?: string, chapterId?: string): Round[] {
     let items = generateItems();
 
     if (filter === 'by-rule') {
@@ -110,22 +111,25 @@ function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter, 
         items = items.filter(i => i.category === filter);
     }
 
-    // Case modes narrow by case; story mode plays one selected letter; other
-    // modes ignore both.
+    // Case modes narrow by case; story mode plays one selected letter OR — when a
+    // chapterId is set — one main-quest chapter (a chapter is a story whose rounds
+    // come from authored prose). Other modes ignore all three.
     let rounds: PracticeRound[];
     if (mode === 'case-single') {
         rounds = generateRounds(items, caseFilter);
     } else if (mode === 'case-detect') {
         rounds = generateDetectRounds(items, caseFilter);
     } else if (mode === 'story') {
-        rounds = generateStoryRoundsFor(storyId, items);
+        rounds = chapterId
+            ? generateChapterRoundsFor(chapterId, items)
+            : generateStoryRoundsFor(storyId, items);
     } else {
         rounds = GENERATORS[mode](items);
     }
     return rounds.map(toRound);
 }
 
-export function useGameState(filter: FilterType, mode: GameMode = 'article', caseFilter: CaseFilter = 'all', active = true, storyId?: string) {
+export function useGameState(filter: FilterType, mode: GameMode = 'article', caseFilter: CaseFilter = 'all', active = true, storyId?: string, chapterId?: string) {
     const [queue, setQueue] = useState<Round[]>([]);
     const [currentWord, setCurrentWord] = useState<Round | null>(null);
     const [score, setScore] = useState(0);
@@ -187,7 +191,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', cas
         clearAnswerTimer();
         clearAutoAdvance();
         clearFreeze();
-        const rounds = buildQueue(filter, mode, caseFilter, storyId);
+        const rounds = buildQueue(filter, mode, caseFilter, storyId, chapterId);
         setQueue(rounds);
         setCurrentWord(rounds.length > 0 ? rounds[0] : null);
         setScore(0);
@@ -202,7 +206,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', cas
         setHintsRemaining({ ...HINT_BUDGET });   // refill hints on a new run
         setRevealedHint(null);
         setStoryResults([]);
-    }, [filter, mode, caseFilter, storyId, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
+    }, [filter, mode, caseFilter, storyId, chapterId, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
 
     // Play audio whenever a new round is displayed (only while the game is on
     // screen). Empty speakOnShow (case mode) is a no-op so the article isn't

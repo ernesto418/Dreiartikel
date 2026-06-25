@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { MAP_NODES, nodeById, type MapNode } from '../map';
+import { chapterById } from '../chapters';
 import { createMapScene, MAP_ASPECT, type MapScene, type LabelPos } from './mapScene';
 import { CaseFilterToggle } from '../components/CaseFilterToggle';
 import type { GameMode, CaseFilter } from '../hooks/useGameState';
 
 interface MapScreenProps {
-    onStart: (mode: GameMode, caseFilter: CaseFilter, storyId?: string) => void;
+    onStart: (mode: GameMode, caseFilter: CaseFilter, storyId?: string, chapterId?: string) => void;
 }
 
 const isCaseNode = (node: MapNode) =>
@@ -20,6 +21,16 @@ const BLURB: Record<GameMode, string> = {
     'case-detect': 'A full sentence shows a highlighted phrase — name its case.',
     'story': 'Read a short German letter — fill each blank as you go.',
 };
+
+/** Panel copy for a node. Main-quest chapter nodes show their narrative intro
+ *  (the scene-setter); everything else shows the generic per-mode blurb. */
+function blurbFor(node: MapNode): string {
+    if (node.chapterId) {
+        const chapter = chapterById(node.chapterId);
+        if (chapter?.intro) return chapter.intro;
+    }
+    return BLURB[node.mode];
+}
 
 export function MapScreen({ onStart }: MapScreenProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +78,7 @@ export function MapScreen({ onStart }: MapScreenProps) {
     const handleStart = () => {
         if (!selected) return;
         const filter = selected.caseFilter ?? caseFilter;
-        onStart(selected.mode, filter, selected.storyId);
+        onStart(selected.mode, filter, selected.storyId, selected.chapterId);
     };
 
     return (
@@ -103,7 +114,7 @@ export function MapScreen({ onStart }: MapScreenProps) {
                             <h3 className="map-panel-title">
                                 <span className="map-panel-icon">{selected.icon}</span> {selected.label}
                             </h3>
-                            <p className="map-panel-blurb">{BLURB[selected.mode]}</p>
+                            <p className="map-panel-blurb">{blurbFor(selected)}</p>
 
                             {/* Case nodes without a preset reveal the case filter. */}
                             {isCaseNode(selected) && selected.caseFilter === undefined && (

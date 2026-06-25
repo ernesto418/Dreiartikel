@@ -18,6 +18,7 @@ function App() {
   const [mode, setMode] = useState<GameMode>('article');
   const [caseFilter, setCaseFilter] = useState<CaseFilter>('all');
   const [storyId, setStoryId] = useState<string | undefined>(undefined);
+  const [chapterId, setChapterId] = useState<string | undefined>(undefined);
   const started = screen === 'game';
 
   const {
@@ -42,7 +43,7 @@ function App() {
     itemsLeft,
     timeBank,
     storyResults,
-  } = useGameState(filter, mode, caseFilter, started, storyId);
+  } = useGameState(filter, mode, caseFilter, started, storyId, chapterId);
 
   const prevStreakRef = useRef(0);
 
@@ -85,10 +86,11 @@ function App() {
   if (screen === 'map') {
     return (
       <MapScreen
-        onStart={(m, cf, sid) => {
+        onStart={(m, cf, sid, cid) => {
           setMode(m);
           setCaseFilter(cf);
           setStoryId(sid);
+          setChapterId(cid);
           setScreen('game');
         }}
       />
