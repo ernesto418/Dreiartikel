@@ -9,10 +9,16 @@ import {
 import { generateItems } from '../data';
 import { articleFor, caseForSurface, type Case } from '../declension';
 import { pluralForm } from '../plurals';
-import { CH1_GENUS, CH1_PLURAL, CH1_AKKUSATIV, CH1_DATIV } from './ch1';
-
 const pool = generateItems();
 const byWord = new Map(pool.map(i => [i.word, i]));
+
+// The Chapter 1 chapters, now loaded from content/*.md via MAIN_QUEST. Looking
+// them up (rather than importing constants) means these tests also verify the
+// Markdown loader produced the expected chapters.
+const CH1_GENUS = chapterById('ch1-genus')!;
+const CH1_PLURAL = chapterById('ch1-plural')!;
+const CH1_AKKUSATIV = chapterById('ch1-akkusativ')!;
+const CH1_DATIV = chapterById('ch1-dativ')!;
 
 describe('MAIN_QUEST integrity', () => {
     it('has unique, resolvable chapter ids', () => {

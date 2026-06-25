@@ -62,16 +62,19 @@ export function generateChapterRoundsFor(chapterId: string | undefined, pool: Pr
     return buildChapterRounds(chapter, pool);
 }
 
-// ── The main quest: Chapter 1, following the book's TOC (1 Nomen) ────────────
-// Each chapter teaches ONE grammar topic in the order the book introduces it:
-// Genus (1.1) → Plural (1.2) → Kasus Akkusativ (1.3) → Kasus Dativ (1.4).
-// The prose is one continuing adventure so the grammar rides a story.
+// ── The main quest: authored chapters loaded from content/*.md ───────────────
+// Each chapter teaches ONE grammar topic. The number prefix on each .md filename
+// is the quest order (Genus 1.1 → Plural 1.2 → Akkusativ 1.3 → Dativ 1.4 …), so
+// adding a chapter = dropping a new numbered .md file in content/ — no code edit.
+// import.meta.glob inlines the files at build time (eager + ?raw → strings);
+// Vitest shares the transform, so MAIN_QUEST is populated in tests too.
 
-import { CH1_GENUS, CH1_PLURAL, CH1_AKKUSATIV, CH1_DATIV } from './ch1';
+import { chaptersFromModules } from './loadChapters';
 
-export const MAIN_QUEST: RawChapter[] = [
-    CH1_GENUS,
-    CH1_PLURAL,
-    CH1_AKKUSATIV,
-    CH1_DATIV,
-];
+const chapterFiles = import.meta.glob('./content/*.md', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+}) as Record<string, string>;
+
+export const MAIN_QUEST: RawChapter[] = chaptersFromModules(chapterFiles);
