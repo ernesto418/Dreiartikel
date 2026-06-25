@@ -261,42 +261,47 @@ function trailingTextAfterBlank(viewLine: StorySegmentView[], globalBlank: numbe
     return out.replace(/\s+/g, ' ').trimEnd();
 }
 
-/** The continuous read spoken AFTER a blank is answered: the rest of the current
- *  sentence (with this blank — and any already-passed blanks — filled), then the
- *  following text flowing into the next sentence, stopping right BEFORE the next
- *  unanswered blank. This is what makes the audio glide sentence-to-sentence.
+/** The read spoken AFTER a blank is answered: the rest of THIS blank's own
+ *  sentence, with the just-answered blank (and any earlier blanks on the line)
+ *  filled in — then it STOPS at the end of the line. It does NOT glide into the
+ *  next sentence; that sentence's lead-in is spoken when the next round shows (on
+ *  Next), so nothing is read twice. Answering "der ___ Junge auf." reads "der
+ *  Junge auf." and stops.
  *
- *  Walks the answer-resolved view from just after `globalBlank` to just before
- *  `globalBlank + 1`, emitting text and filled answers along the way. */
+ *  Two refinements:
+ *   - if a LATER blank sits on the same line, the read stops right before it (its
+ *     slot is still unanswered, so it stays silent);
+ *   - if this is the FINAL blank of the whole story, the read continues to the end
+ *     so the closing lines (a letter's sign-off, a chapter's last sentence) are
+ *     heard — there is no next round to read them. */
 function continuationAfterBlank(lines: StorySegmentView[][], globalBlank: number): string {
-    // Concatenate raw (text runs already carry their own spacing; answers slot
-    // in where a blank was), then collapse whitespace at the end.
+    const totalBlanks = lines.flat().filter(s => s.kind === 'blank').length;
+    const isFinalBlank = globalBlank === totalBlanks - 1;
+    const li = viewLineOfBlank(lines, globalBlank);
     let out = '';
     let passedCurrent = false;
-    const done = () => out.replace(/\s+/g, ' ').trim();
 
-    for (let li = 0; li < lines.length; li++) {
-        const line = lines[li];
-        for (const seg of line) {
+    for (let l = li; l < lines.length; l++) {
+        for (const seg of lines[l]) {
             if (seg.kind === 'text') {
                 if (passedCurrent) out += seg.text;
                 continue;
             }
             const bi = seg.blankIndex!;
-            if (bi < globalBlank) continue;          // already read in a prior round
+            if (bi < globalBlank) continue;      // earlier blank: already read
             if (bi === globalBlank) {
-                out += seg.answer ?? '';             // fill the just-answered blank
+                out += seg.answer ?? '';         // fill the just-answered blank
                 passedCurrent = true;
                 continue;
             }
-            // bi > globalBlank: the NEXT blank — stop here (silence while choosing).
-            return done();
+            return out.replace(/\s+/g, ' ').trim();  // a later blank — stop before it
         }
-        // A line break between sentences reads as a brief pause.
+        // End of a line. Stop here unless this is the final blank, in which case
+        // keep reading the remaining closing lines to the end.
+        if (!isFinalBlank) break;
         if (passedCurrent) out += ' ';
     }
-    // No further blank: read to the end of the letter.
-    return done();
+    return out.replace(/\s+/g, ' ').trim();
 }
 
 /** Find the line index (in the VIEW) containing the blank with a given index. */

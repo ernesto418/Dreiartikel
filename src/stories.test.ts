@@ -362,11 +362,13 @@ describe('story mode — continuous audio', () => {
         }
     });
 
-    it('a blank-free sentence is read THROUGH (audio glides between blanks)', () => {
-        // In Liebe Lisa, "Nur um Max mache ich mir Gedanken." sits between blank 0
-        // and blank 1 with no blank of its own — the read after blank 0 must
-        // include it, proving the glide past blank-free sentences.
-        expect(rounds[0].spokenText).toContain('Gedanken');
+    it('the on-answer read STOPS at the end of its own sentence (no read-ahead)', () => {
+        // In Liebe Lisa, blank 0 sits in the first sentence; the blank-free
+        // sentence that follows ("Nur um Max mache ich mir Gedanken.") belongs to
+        // the NEXT round's reading, not this one. The read after blank 0 must NOT
+        // spill into it — otherwise that text gets spoken twice. This is the fix
+        // for audio reading past the answered sentence.
+        expect(rounds[0].spokenText).not.toContain('Gedanken');
     });
 
     it('each story\'s final blank reads to the end of its own letter', () => {
