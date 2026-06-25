@@ -363,9 +363,11 @@ export function buildStoryRounds(story: Story, pool: PracticeItem[]): PracticeRo
         rounds.push({
             item: rb.item,
             promptText,
-            // Audio (continuous): lead-in up to the blank on show (from
-            // promptText in toRound); on answer, the rest of the sentence with
-            // the blank filled, gliding to the next blank.
+            // Audio: on show, speak ONLY the lead-in (text before the blank) — the
+            // noun after the blank stays visible but silent, and the article is
+            // never voiced. On answer, the continuous read fills the blank and
+            // glides to the next blank.
+            speakOnShow: lead,
             spokenText: continuationAfterBlank(lines, bi),
             speakOnShowSafe: true,
             answer: rb.answer,

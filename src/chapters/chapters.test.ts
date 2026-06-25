@@ -128,6 +128,30 @@ describe('prompt shows the noun after the blank (genus/kasus)', () => {
         expect(hund!.promptText).toMatch(/___\s+Hund/);
     });
 
+    it('on-show audio is the lead-in ONLY — stops before the blank, noun stays silent', () => {
+        // Regression for the audio bug: the on-show audio must STOP before the
+        // blank. It must equal the prompt text before the "___" slot — so it never
+        // voices the article being asked, nor reads the noun that follows the
+        // blank (which is visible but silent until answered). We don't forbid the
+        // article string outright: an answer like 'den'/'der' is an ordinary word
+        // that legitimately appears earlier in the prose; the structural "lead-in
+        // is exactly the pre-slot text" check is the real guarantee.
+        for (const ch of MAIN_QUEST) {
+            const rounds = buildChapterRounds(ch, pool);
+            for (const r of rounds) {
+                const onShow = r.speakOnShow ?? '';
+                const beforeSlot = r.promptText.split(/_+/)[0].trim();
+                expect(onShow, `${ch.id} "${r.item.word}"`).toBe(beforeSlot);
+                // The noun that sits AFTER the blank is never in the on-show audio.
+                const afterSlot = (r.promptText.split(/_+/)[1] ?? '').trim();
+                const nounAfter = afterSlot.split(/\s+/)[0]?.replace(/[.,!?]$/, '');
+                if (nounAfter && nounAfter === r.item.word) {
+                    expect(onShow.endsWith(nounAfter), `${ch.id} on-show should not voice "${nounAfter}"`).toBe(false);
+                }
+            }
+        }
+    });
+
     it('chapterToStory yields the topic as the story mode', () => {
         expect(chapterToStory(CH1_GENUS).mode).toBe('genus');
         expect(chapterToStory(CH1_DATIV).mode).toBe('kasus-dat');

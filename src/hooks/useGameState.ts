@@ -65,16 +65,13 @@ const GENERATORS: Record<GameMode, RoundGenerator> = {
  *  leaking the answer (case mode), stay silent on show and replay the bare noun;
  *  otherwise speak the prompt and reinforce with the full line after answering. */
 function toRound(r: PracticeRound): Round {
-    // Story rounds speak the sentence read aloud, not the literal "lead-in ___":
-    // on show, the words around the blank with the blank itself silent (the
-    // article is never spoken before answering); on answer, the completed
-    // sentence. The blank may sit MID-sentence ("Ich sehe ___ Hund" — genus/kasus
-    // keep the noun after the blank), so we replace the "___" token with a short
-    // pause rather than stripping to the end, keeping the noun audible.
+    // Story rounds speak only the LEAD-IN on show — the words strictly before the
+    // blank (carried on r.speakOnShow). The blank and any noun after it stay
+    // visible but silent until answered, so the on-show audio never voices the
+    // article (no leak) nor reads ahead into the noun / next sentence. On answer,
+    // the continuous read (spokenText) fills the blank and glides onward.
     const story = r.storyContext;
-    const storyLeadIn = story
-        ? r.promptText.replace(/_+/g, ' … ').replace(/\s+/g, ' ').trim()
-        : '';
+    const storyLeadIn = story ? (r.speakOnShow ?? '').trim() : '';
 
     return {
         id: r.item.id,

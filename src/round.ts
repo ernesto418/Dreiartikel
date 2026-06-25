@@ -49,6 +49,12 @@ export interface PracticeRound {
      *  the loop this round is graded-once (no wrong-answer re-queue). Absent in
      *  every other mode — the loop stays mode-agnostic. */
     storyContext?: StoryContext;
+    /** Story-mode rounds only: the words STRICTLY BEFORE the blank — what to
+     *  speak on show. The blank (and everything after it on the line) stays
+     *  silent until answered, so the on-show audio never voices the noun the
+     *  learner is judging nor leaks the article. `promptText` may include the
+     *  trailing noun for the VISIBLE prompt; this field is the audio-only subset. */
+    speakOnShow?: string;
 }
 
 /** A mode is a pure function from a noun pool to the rounds to play. */
