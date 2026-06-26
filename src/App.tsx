@@ -86,9 +86,10 @@ function App() {
   if (screen === 'map') {
     return (
       <MapScreen
-        onStart={(m, cf, sid, cid) => {
+        onStart={(m, cf, f, sid, cid) => {
           setMode(m);
           setCaseFilter(cf);
+          setFilter(f);
           setStoryId(sid);
           setChapterId(cid);
           setScreen('game');

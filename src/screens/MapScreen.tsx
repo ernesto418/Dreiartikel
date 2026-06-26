@@ -3,10 +3,10 @@ import { MAP_NODES, nodeById, type MapNode } from '../map';
 import { chapterById } from '../chapters';
 import { createMapScene, MAP_ASPECT, type MapScene, type LabelPos } from './mapScene';
 import { CaseFilterToggle } from '../components/CaseFilterToggle';
-import type { GameMode, CaseFilter } from '../hooks/useGameState';
+import type { GameMode, CaseFilter, FilterType } from '../hooks/useGameState';
 
 interface MapScreenProps {
-    onStart: (mode: GameMode, caseFilter: CaseFilter, storyId?: string, chapterId?: string) => void;
+    onStart: (mode: GameMode, caseFilter: CaseFilter, filter: FilterType, storyId?: string, chapterId?: string) => void;
 }
 
 const isCaseNode = (node: MapNode) =>
@@ -85,8 +85,10 @@ export function MapScreen({ onStart }: MapScreenProps) {
 
     const handleStart = () => {
         if (!selected) return;
-        const filter = selected.caseFilter ?? caseFilter;
-        onStart(selected.mode, filter, selected.storyId, selected.chapterId);
+        const caseF = selected.caseFilter ?? caseFilter;
+        // A node's vocabulary scope: its filter (a category) or the whole pool.
+        const vocabFilter = selected.filter ?? 'all';
+        onStart(selected.mode, caseF, vocabFilter, selected.storyId, selected.chapterId);
     };
 
     return (

@@ -1,12 +1,19 @@
 ---
 title: Kapitel 1 · Der Einkauf
 topic: kasus-akk
-intro: Bevor er weiterzieht, braucht der Junge Vorräte. Was nimmt er mit? Alles, was er kauft, steht im Akkusativ.
+intro: At the market the traveller buys provisions for the road — food and supplies he picks up and pays for.
 ---
-Der Junge kauft den Apfel und den Käse.
-Für den Fisch und für den Salat bezahlt er gern.
-Er nimmt den Reis und den Kuchen mit.
-Durch den Wein wird das Fest noch schöner.
-Am Stand grüßt er den Jungen von gestern.
-Ohne den Kaffee geht er nicht weiter.
-Jetzt hat er alles für die Reise.
+Am Morgen geht der Reisende zum Markt.
+Er hat großen Hunger und den Durst.
+Für den Einkauf nimmt er den Korb.
+Dann sucht er den Käse und das Brot.
+Plötzlich sieht er den Schinken auf der Theke.
+Für den Schinken bezahlt er gern.
+Ohne den Senf kauft er nichts dazu.
+Danach sucht er den Apfel und den Pfirsich.
+Für den Apfel gibt er das Geld.
+Endlich findet er den Orangensaft im Stand.
+Ohne den Kaffee geht er nicht nach Hause.
+Für den Kaffee wartet er kurz.
+Gegen den Hunger kauft er noch den Hamburger.
+Durch den Markt trägt er den Korb nach Hause.

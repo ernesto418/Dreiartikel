@@ -1,4 +1,4 @@
-import type { GameMode, CaseFilter } from './hooks/useGameState';
+import type { GameMode, CaseFilter, FilterType } from './hooks/useGameState';
 import mapData from './map.json';
 
 // ─── The map is DATA, and the data lives in JSON ────────────────────────────
@@ -28,6 +28,10 @@ export interface MapNode {
      *  drills only that case (a future "Dativ only" node). If unset, the panel
      *  shows the All/Nom/Akk/Dat filter. */
     caseFilter?: CaseFilter;
+    /** Optional vocabulary scope. A category name (e.g. 'Animals') narrows the
+     *  noun pool to that theme, so a side quest labelled "Tiere" actually drills
+     *  animals. Unset = the whole pool ('all'). */
+    filter?: FilterType;
     /** Story-mode nodes only: which story to play (a Story.id). Lets several
      *  story nodes share mode:'story' but each launch a different letter. */
     storyId?: string;

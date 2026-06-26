@@ -292,9 +292,9 @@ h1.active-word.sentence {
   appearance: none;
   cursor: pointer;
   white-space: nowrap;
-  padding: 3px 5px;
+  padding: 4px 7px;
   font-family: var(--font-pixel);
-  font-size: 0.4rem;
+  font-size: 0.55rem;
   line-height: 1;
   color: var(--pix-ink);
   background: var(--pix-parchment);
