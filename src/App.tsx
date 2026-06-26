@@ -3,13 +3,16 @@ import { useGameState, type FilterType, type GameMode, type CaseFilter } from '.
 import { useInput } from './hooks/useInput';
 import { getCategories } from './data';
 import { getHypeLevel, fireConfetti } from './utils/confetti';
+import { setAudioEnabled } from './utils/speech';
+import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { MapScreen } from './screens/MapScreen';
 import { GameScreen } from './screens/GameScreen';
 import { GameOverScreen } from './screens/GameOverScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 
 const thematicCategories = getCategories();
 
-type Screen = 'map' | 'game' | 'over';
+type Screen = 'map' | 'game' | 'over' | 'settings';
 
 function App() {
   const [screen, setScreen] = useState<Screen>('map');
@@ -19,7 +22,13 @@ function App() {
   const [caseFilter, setCaseFilter] = useState<CaseFilter>('all');
   const [storyId, setStoryId] = useState<string | undefined>(undefined);
   const [chapterId, setChapterId] = useState<string | undefined>(undefined);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const started = screen === 'game';
+
+  // Keep the audio layer in sync with the setting (one global gate in speech.ts).
+  useEffect(() => {
+    setAudioEnabled(settings.audioEnabled);
+  }, [settings.audioEnabled]);
 
   const {
     currentWord,
@@ -43,7 +52,7 @@ function App() {
     itemsLeft,
     timeBank,
     storyResults,
-  } = useGameState(filter, mode, caseFilter, started, storyId, chapterId);
+  } = useGameState(filter, mode, caseFilter, started, storyId, chapterId, settings.durationSec);
 
   const prevStreakRef = useRef(0);
 
@@ -83,6 +92,16 @@ function App() {
   });
 
   // ─── Routing ───────────────────────────────────────────────────────
+  if (screen === 'settings') {
+    return (
+      <SettingsScreen
+        settings={settings}
+        onChange={setSettings}
+        onClose={() => setScreen('map')}
+      />
+    );
+  }
+
   if (screen === 'map') {
     return (
       <MapScreen
@@ -94,6 +113,7 @@ function App() {
           setChapterId(cid);
           setScreen('game');
         }}
+        onOpenSettings={() => setScreen('settings')}
       />
     );
   }

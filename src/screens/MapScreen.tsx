@@ -7,6 +7,7 @@ import type { GameMode, CaseFilter, FilterType } from '../hooks/useGameState';
 
 interface MapScreenProps {
     onStart: (mode: GameMode, caseFilter: CaseFilter, filter: FilterType, storyId?: string, chapterId?: string) => void;
+    onOpenSettings: () => void;
 }
 
 const isCaseNode = (node: MapNode) =>
@@ -32,7 +33,7 @@ function blurbFor(node: MapNode): string {
     return BLURB[node.mode];
 }
 
-export function MapScreen({ onStart }: MapScreenProps) {
+export function MapScreen({ onStart, onOpenSettings }: MapScreenProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const selectedLabelRef = useRef<HTMLButtonElement>(null);
@@ -94,6 +95,14 @@ export function MapScreen({ onStart }: MapScreenProps) {
     return (
         <main>
             <div className="map-screen">
+                <button
+                    type="button"
+                    className="map-settings-btn"
+                    aria-label="Settings"
+                    onClick={onOpenSettings}
+                >
+                    ⚙
+                </button>
                 <h1 className="map-title">Dreiartikel</h1>
                 <p className="map-subtitle">Follow the path — or jump anywhere.</p>
 

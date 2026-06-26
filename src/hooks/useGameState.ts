@@ -45,8 +45,7 @@ export interface Round {
     storyContext?: StoryContext;
 }
 
-const INITIAL_TIME_BANK = 3000; // 3 seconds starting budget
-const TIME_PER_WORD = 3000;     // 3 seconds allowed per word
+const DEFAULT_DURATION_SEC = 3; // per-word budget when no setting is supplied
 const BONUS_CAP = 2000;         // max bonus you can recover per word
 
 // Each mode is one pure pool→rounds function behind the same contract. Adding a
@@ -126,7 +125,12 @@ function buildQueue(filter: FilterType, mode: GameMode, caseFilter: CaseFilter, 
     return rounds.map(toRound);
 }
 
-export function useGameState(filter: FilterType, mode: GameMode = 'article', caseFilter: CaseFilter = 'all', active = true, storyId?: string, chapterId?: string) {
+export function useGameState(filter: FilterType, mode: GameMode = 'article', caseFilter: CaseFilter = 'all', active = true, storyId?: string, chapterId?: string, durationSec: number = DEFAULT_DURATION_SEC) {
+    // Per-word time budget from settings (chess clock). The starting bank matches
+    // one word's allowance, as it always has.
+    const TIME_PER_WORD = durationSec * 1000;
+    const INITIAL_TIME_BANK = TIME_PER_WORD;
+
     const [queue, setQueue] = useState<Round[]>([]);
     const [currentWord, setCurrentWord] = useState<Round | null>(null);
     const [score, setScore] = useState(0);
@@ -203,7 +207,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', cas
         setHintsRemaining({ ...HINT_BUDGET });   // refill hints on a new run
         setRevealedHint(null);
         setStoryResults([]);
-    }, [filter, mode, caseFilter, storyId, chapterId, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
+    }, [filter, mode, caseFilter, storyId, chapterId, INITIAL_TIME_BANK, clearAnswerTimer, clearAutoAdvance, clearFreeze]);
 
     // Play audio whenever a new round is displayed (only while the game is on
     // screen). Empty speakOnShow (case mode) is a no-op so the article isn't
@@ -278,7 +282,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', cas
             return newQueue;
         });
 
-    }, [currentWord, isAwaitingNext, clearAnswerTimer]);
+    }, [currentWord, isAwaitingNext, clearAnswerTimer, TIME_PER_WORD]);
 
     useEffect(() => {
         handleAnswerRef.current = handleAnswer;
@@ -413,7 +417,7 @@ export function useGameState(filter: FilterType, mode: GameMode = 'article', cas
         }
 
         return () => clearAnswerTimer();
-    }, [active, currentWord, isAwaitingNext, isFrozen, clearAnswerTimer]);
+    }, [active, currentWord, isAwaitingNext, isFrozen, clearAnswerTimer, TIME_PER_WORD]);
 
     const handleReplay = useCallback(() => {
         if (currentWord) {
