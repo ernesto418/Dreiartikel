@@ -26,6 +26,8 @@ function item(partial: Partial<PracticeItem> & { word: string }): PracticeItem {
         pluralOnly: partial.pluralOnly,
         plural: partial.plural,
         pluralPattern: partial.pluralPattern,
+        level: partial.level ?? 1,
+        tags: partial.tags ?? [],
     };
 }
 
