@@ -34,6 +34,8 @@ function blurbFor(node: MapNode): string {
 
 export function MapScreen({ onStart }: MapScreenProps) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const selectedLabelRef = useRef<HTMLButtonElement>(null);
     const sceneRef = useRef<MapScene | null>(null);
     // Start on the first lesson so the panel is never empty.
     const [selectedId, setSelectedId] = useState<string>(MAP_NODES[0].id);
@@ -68,9 +70,15 @@ export function MapScreen({ onStart }: MapScreenProps) {
     }, []);
 
     // Drive the hero/selection ring from React state (covers both canvas taps and
-    // any future HTML-driven selection).
+    // any future HTML-driven selection), and scroll the chosen node into view so
+    // selecting one off-screen glides the wide world to it.
     useEffect(() => {
         sceneRef.current?.select(selectedId);
+        selectedLabelRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            inline: 'center',
+            block: 'nearest',
+        });
     }, [selectedId]);
 
     const selected = nodeById(selectedId);
@@ -87,7 +95,11 @@ export function MapScreen({ onStart }: MapScreenProps) {
                 <h1 className="map-title">Dreiartikel</h1>
                 <p className="map-subtitle">Follow the path — or jump anywhere.</p>
 
-                <div className="map-stage">
+                {/* Horizontal scroll viewport: clips the wide world to one screen
+                    and scrolls sideways through the journey. The inner stage is the
+                    true (wide) canvas aspect, so labels position as a % of it and
+                    pixels stay crisp; selecting a node scrolls it into view. */}
+                <div className="map-stage" ref={scrollRef}>
                     <div
                         ref={containerRef}
                         className="map-canvas-wrap"
@@ -97,6 +109,7 @@ export function MapScreen({ onStart }: MapScreenProps) {
                             <button
                                 key={l.id}
                                 type="button"
+                                ref={l.id === selectedId ? selectedLabelRef : undefined}
                                 className={`map-label ${l.id === selectedId ? 'active' : ''}`}
                                 style={{ left: `${l.xPct}%`, top: `${l.yPct}%` }}
                                 onClick={() => setSelectedId(l.id)}

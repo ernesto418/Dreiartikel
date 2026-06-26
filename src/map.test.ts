@@ -1,14 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import { MAP_NODES, MAP_EDGES, nodeById } from './map';
 import { MAIN_QUEST } from './chapters';
+import rawMap from './map.json';
 import type { GameMode } from './hooks/useGameState';
 
-// These guards protect future iterations: when you append a node or fork to the
-// arrays in map.ts, a typo'd id or an invalid mode fails here instead of
-// rendering a dead node at runtime.
+// These guards protect future iterations: when you edit map.json (append a node
+// or fork, move a marker), a typo'd id, an invalid mode, or an x/y out of range
+// fails here — and map.ts's load-time validate() throws — instead of rendering a
+// dead node at runtime.
 
 const VALID_MODES: GameMode[] = ['article', 'case-single', 'case-detect', 'plural', 'story'];
 const VALID_CASE_FILTERS = ['all', 'nom', 'akk', 'dat', 'gen'];
+
+describe('map.json source', () => {
+    it('the JSON parses into { nodes, edges } and the loader exposes them', () => {
+        // map.json is the authored source; map.ts loads + validates it. If the
+        // file shape drifts (someone renames `nodes`, breaks the JSON), this and
+        // the load-time validate() catch it.
+        expect(Array.isArray(rawMap.nodes)).toBe(true);
+        expect(Array.isArray(rawMap.edges)).toBe(true);
+        expect(MAP_NODES.length).toBe(rawMap.nodes.length);
+        expect(MAP_EDGES.length).toBe(rawMap.edges.length);
+    });
+});
 
 describe('map nodes', () => {
     it('every node launches a valid GameMode', () => {

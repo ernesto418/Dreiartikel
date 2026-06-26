@@ -210,16 +210,36 @@ h1.active-word.sentence {
   line-height: 1.6;
 }
 
-/* Stage fills the space between subtitle and panel; centers the aspect-locked
-   map within it. Padding leaves room for the frame's outer edge + drop shadow. */
+/* Stage = the horizontal SCROLL VIEWPORT. It fills the space between subtitle
+   and panel, clips the wide world to one screen, and scrolls sideways through
+   the journey. The map is taller-than-wide on screen only as much as one band;
+   the real width lives in the inner wrap, which overflows and scrolls. */
 .map-stage {
   flex: 1;
   min-height: 0;
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* start at the journey's beginning (leftmost) rather than centered */
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* momentum scroll + snap feel on touch; keep room for the frame's drop shadow */
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-inline: 1rem;
   padding: 0 6px 6px 0;
+}
+
+/* Slim pixel scrollbar so the horizontal scroll is discoverable but unobtrusive. */
+.map-stage::-webkit-scrollbar {
+  height: 8px;
+}
+.map-stage::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+}
+.map-stage::-webkit-scrollbar-thumb {
+  background: var(--pix-wood);
+  border: 2px solid var(--pix-ink);
 }
 
 /* The pixel-art canvas, framed like a chiseled wooden JRPG window. The frame is
@@ -228,8 +248,15 @@ h1.active-word.sentence {
    position by a plain percentage. */
 .map-canvas-wrap {
   position: relative;
-  width: 100%;
-  max-width: 460px;
+  /* Height-driven, with a DEFINITE height (viewport units, not %) so the inline
+     aspect-ratio can compute the (wide) width from it — a percentage height
+     against the flex viewport is indefinite and collapses the box. The width it
+     derives is much wider than the screen, so the stage scrolls it horizontally;
+     flex-shrink:0 stops the flex viewport from squashing it. clamp() keeps the
+     band a comfortable tap size on both short and tall screens. */
+  height: clamp(220px, 42dvh, 300px);
+  width: auto;
+  flex-shrink: 0;
   box-sizing: border-box;
   border-radius: 0;
   background: #264e36;

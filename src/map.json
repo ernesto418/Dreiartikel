@@ -1,0 +1,30 @@
+{
+  "_comment": "The lesson map as DATA. Edit this file to change the flow — add a node, add an edge, move a marker — with no code change. `nodes` are launch points; `edges` are the drawn roads ('main' = solid quest road, 'fork' = dashed sidequest). x/y are in [0,100]: x runs left→right along the journey (the world scrolls horizontally), y is a compact band (small wiggle above/below the trail). See map.ts for the field meanings and the validation that guards your edits.",
+
+  "nodes": [
+    { "id": "ch1-genus", "label": "Ch.1 · Der Aufbruch", "icon": "📖", "mode": "story", "chapterId": "ch1-genus", "x": 6, "y": 38 },
+    { "id": "ch1-plural", "label": "Ch.1 · Der Markt", "icon": "📖", "mode": "story", "chapterId": "ch1-plural", "x": 32, "y": 30 },
+    { "id": "ch1-akkusativ", "label": "Ch.1 · Der Einkauf", "icon": "📖", "mode": "story", "chapterId": "ch1-akkusativ", "x": 60, "y": 42 },
+    { "id": "ch1-dativ", "label": "Ch.1 · Die Reise", "icon": "📖", "mode": "story", "chapterId": "ch1-dativ", "x": 90, "y": 32 },
+
+    { "id": "articles", "label": "Articles", "icon": "🎯", "mode": "article", "x": 12, "y": 74 },
+    { "id": "plural", "label": "Plural", "icon": "🔢", "mode": "plural", "x": 40, "y": 70 },
+    { "id": "plural-story", "label": "Plural · Story", "icon": "✉️", "mode": "story", "storyId": "liebe-lisa", "x": 28, "y": 90 },
+    { "id": "cases-produce", "label": "Cases · Produce", "icon": "✍️", "mode": "case-single", "x": 68, "y": 76 },
+    { "id": "cases-detect", "label": "Cases · Detect", "icon": "🔍", "mode": "case-detect", "x": 86, "y": 88 },
+    { "id": "dativ-story", "label": "Dativ · Story", "icon": "✉️", "mode": "story", "storyId": "familientag", "x": 56, "y": 92 }
+  ],
+
+  "edges": [
+    { "from": "ch1-genus", "to": "ch1-plural", "kind": "main" },
+    { "from": "ch1-plural", "to": "ch1-akkusativ", "kind": "main" },
+    { "from": "ch1-akkusativ", "to": "ch1-dativ", "kind": "main" },
+
+    { "from": "ch1-genus", "to": "articles", "kind": "fork" },
+    { "from": "ch1-plural", "to": "plural", "kind": "fork" },
+    { "from": "plural", "to": "plural-story", "kind": "fork" },
+    { "from": "ch1-akkusativ", "to": "cases-produce", "kind": "fork" },
+    { "from": "cases-produce", "to": "cases-detect", "kind": "fork" },
+    { "from": "ch1-dativ", "to": "dativ-story", "kind": "fork" }
+  ]
+}
